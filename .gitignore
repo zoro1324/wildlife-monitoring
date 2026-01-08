@@ -2,6 +2,7 @@
 __pycache__/
 *.py[codz]
 *$py.class
+yolo-models/yolo_dataset
 
 # C extensions
 *.so
