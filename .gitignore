@@ -2,14 +2,24 @@
 __pycache__/
 *.py[codz]
 *$py.class
-yolo-models/yolo_dataset
 
-# C extensions
-*.so
+# Large model weight files
+*.pt
+*.pth
+best.pt
+
+# Datasets and training data
+animal_dataset/
+yolo-models/dataset
+yolo-models/animal_dataset
+yolo-models/runs/
 models/datasets
 models/saved_models
 models/train
 models/test
+
+# C extensions
+*.so
 # Distribution / packaging
 .Python
 build/
