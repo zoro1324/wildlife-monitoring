@@ -1,0 +1,12 @@
+path: animal_dataset
+train: images/train
+val: images/val
+test: images/test
+
+names:
+  0: Bear
+  1: Elephant
+  2: Leopard
+  3: Lion
+  4: Tiger
+  5: Wolf
