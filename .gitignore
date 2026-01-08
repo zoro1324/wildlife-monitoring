@@ -13,6 +13,8 @@ animal_dataset/
 yolo-models/dataset
 yolo-models/animal_dataset
 yolo-models/runs/
+yolo-models/best_models/
+
 models/datasets
 models/saved_models
 models/train
