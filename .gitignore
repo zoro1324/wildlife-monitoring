@@ -10,6 +10,7 @@ best.pt
 
 # Datasets and training data
 animal_dataset/
+animal_dataset_with_noice/
 yolo-models/dataset
 yolo-models/animal_dataset
 yolo-models/runs/
