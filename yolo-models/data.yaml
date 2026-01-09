@@ -5,8 +5,11 @@ test: images/test
 
 names:
   0: Bear
-  1: Elephant
-  2: Leopard
-  3: Lion
-  4: Tiger
-  5: Wolf
+  1: Bision
+  2: Elephant
+  3: Human
+  4: Leopord
+  5: Lion
+  6: Tiger
+  7: Wild Boar
+  8: Wolf
