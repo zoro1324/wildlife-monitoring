@@ -7,8 +7,10 @@ Wild-Boar-1/
 *.pt
 *.pth
 best.pt
-
-
+animal_with_noise/
+new-models/animals/
+animals/
+dataset
 # Datasets and training data
 animal_dataset/
 animal_dataset_with_noice/
@@ -16,6 +18,8 @@ yolo-models/dataset
 yolo-models/animal_dataset
 yolo-models/runs/
 yolo-models/best_models/
+
+zips/
 
 models/datasets
 models/saved_models
