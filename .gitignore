@@ -2,11 +2,12 @@
 __pycache__/
 *.py[codz]
 *$py.class
-
+Wild-Boar-1/
 # Large model weight files
 *.pt
 *.pth
 best.pt
+
 
 # Datasets and training data
 animal_dataset/
