@@ -35,50 +35,21 @@ lerna-debug.log*
 # OS files
 .DS_Store
 Thumbs.db
-desktop.ini
 
-# Python
-__pycache__/
-*.py[codz]
-*$py.class
-*.so
-.Python
-.venv/
-venv/
-ENV/
-.env/
-.ipynb_checkpoints/
-
-# ML/Data files (large files that shouldn't be in git)
-*.h5
-*.hdf5
-*.pkl
-*.pickle
-*.pth
-*.pt
-*.onnx
-*.weights
-datasets/
-saved_models/
-train/
-test/
-
-# Jupyter
-.ipynb_checkpoints/
-
-# Coverage
+# Testing
 coverage/
 *.lcov
-htmlcov/
 
 # Cache
 .cache/
 .eslintcache
 .stylelintcache
 *.tsbuildinfo
-.pytest_cache/
+
+# Tailwind
+.tailwindcss/
 
 # Misc
-*.log
-*.tmp
-*.temp
+*.pem
+.vercel
+.netlify
