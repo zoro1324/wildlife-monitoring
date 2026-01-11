@@ -1,5 +1,6 @@
 import os
 import shutil
+import yaml
 
 
 def slugify(name: str) -> str:
@@ -14,14 +15,13 @@ target_root = "dataset"
 
 class_names = [
     "Bear",
-    "Bision",
+    "Bison",
+    "Boar",
     "Elephant",
     "Human",
-    "Leopord",
+    "Leopard",
     "Lion",
     "Tiger",
-    "Wild Boar",
-    "Wolf",
 ]
 
 classes = {
@@ -31,10 +31,10 @@ classes = {
 
 split_map = {
     "train": "train",
-    "valid": "val",
-    "test": "test",
+    "val": "val",
 }
 
+# Create directory structure for YOLO dataset
 for split in split_map.values():
     os.makedirs(os.path.join(target_root, "images", split), exist_ok=True)
     os.makedirs(os.path.join(target_root, "labels", split), exist_ok=True)
@@ -89,3 +89,22 @@ for animal, meta in classes.items():
                 print(f"      Warning: No label file for {new_name}{ext}")
 
 print("\nDataset reorganization complete!")
+
+# Create data.yaml for YOLO
+data_yaml = {
+    "path": os.path.abspath(target_root),
+    "train": "images/train",
+    "val": "images/val",
+    "nc": len(class_names),
+    "names": {idx: name for name, meta in classes.items() for idx in [meta["id"]]}
+}
+
+with open(os.path.join(target_root, "data.yaml"), "w") as f:
+    yaml.dump(data_yaml, f, default_flow_style=False, sort_keys=False)
+
+print(f"\nCreated data.yaml with {len(class_names)} classes")
+print(f"Dataset structure:")
+print(f"  - {target_root}/images/train/")
+print(f"  - {target_root}/images/val/")
+print(f"  - {target_root}/labels/train/")
+print(f"  - {target_root}/labels/val/")

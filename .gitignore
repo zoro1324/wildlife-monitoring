@@ -11,6 +11,9 @@ animal_with_noise/
 new-models/animals/
 animals/
 dataset
+
+new-models/runs/
+
 # Datasets and training data
 animal_dataset/
 animal_dataset_with_noice/

@@ -1,14 +1,13 @@
-path: dataset
+path: d:\wildlife-monitoring\new-models\dataset
 train: images/train
 val: images/val
-
+nc: 8
 names:
   0: Bear
-  1: Bision
-  2: Elephant
-  3: Human
-  4: Leopord
-  5: Lion
-  6: Tiger
-  7: Wild Boar
-  8: Wolf
+  1: Bison
+  2: Boar
+  3: Elephant
+  4: Human
+  5: Leopard
+  6: Lion
+  7: Tiger
