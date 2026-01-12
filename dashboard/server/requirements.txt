@@ -1,0 +1,49 @@
+# Django core
+Django>=5.0,<7.0
+mysqlclient>=2.2.0
+
+# Django REST Framework
+djangorestframework>=3.14.0
+djangorestframework-simplejwt>=5.3.0
+django-cors-headers>=4.3.0
+
+# Celery (Background Tasks)
+celery>=5.3.0
+redis>=5.0.0
+django-celery-results>=2.5.0
+django-celery-beat>=2.5.0
+
+# Image Processing
+Pillow>=10.0.0
+
+# AI/ML (YOLO)
+ultralytics>=8.0.0
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Environment & Config
+python-decouple>=3.8
+
+# Database
+PyMySQL>=1.1.0
+
+# Production Server
+gunicorn>=21.0.0
+uvicorn>=0.25.0
+
+# Development & Testing
+pytest>=7.4.0
+pytest-django>=4.7.0
+factory-boy>=3.3.0
+coverage>=7.3.0
+
+# Code Quality
+black>=23.0.0
+flake8>=6.1.0
+isort>=5.12.0
+
+# API Documentation (Optional)
+drf-yasg>=1.21.0
+
+# Monitoring (Optional)
+sentry-sdk>=1.35.0
