@@ -1,28 +1,44 @@
+# ======================
+# WILDLIFE MONITORING PROJECT
+# ======================
+
+# ----------------------
 # Dependencies
+# ----------------------
 node_modules/
 .pnp/
 .pnp.js
 
+# ----------------------
 # Build outputs
+# ----------------------
 dist/
 build/
 *.local
 
+# ----------------------
 # Environment files
+# ----------------------
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
 
+# ----------------------
 # Logs
+# ----------------------
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+pip-log.txt
+pip-delete-this-directory.txt
 
+# ----------------------
 # Editor directories and files
+# ----------------------
 .vscode/*
 !.vscode/extensions.json
 .idea/
@@ -32,12 +48,16 @@ lerna-debug.log*
 *.sln
 *.sw?
 
+# ----------------------
 # OS files
+# ----------------------
 .DS_Store
 Thumbs.db
 desktop.ini
 
+# ----------------------
 # Python
+# ----------------------
 __pycache__/
 *.py[codz]
 *$py.class
@@ -46,39 +66,108 @@ __pycache__/
 .venv/
 venv/
 ENV/
-.env/
+env.bak/
+venv.bak/
 .ipynb_checkpoints/
 
-# ML/Data files (large files that shouldn't be in git)
+# Python packaging
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# ----------------------
+# ML / Model files
+# ----------------------
+# Large model weight files
+*.pt
+*.pth
 *.h5
 *.hdf5
 *.pkl
 *.pickle
-*.pth
-*.pt
 *.onnx
 *.weights
+best.pt
+
+# Datasets and training data
 datasets/
 saved_models/
 train/
 test/
+models/datasets/
+models/saved_models/
+models/train/
+models/test/
 
-# Jupyter
-.ipynb_checkpoints/
+# YOLO specific
+yolo-models/dataset/
+yolo-models/animal_dataset/
+yolo-models/runs/
+yolo-models/best_models/
+new-models/
+animal_dataset/
+animal_dataset_with_noice/
+animal_with_noise/
+animals/
+Wild-Boar-1/
+dataset/
+zips/
 
-# Coverage
+# ----------------------
+# Testing & Coverage
+# ----------------------
 coverage/
 *.lcov
 htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+nosetests.xml
+coverage.xml
+*.cover
+*.py.cover
+.hypothesis/
+.pytest_cache/
+cover/
 
+# ----------------------
 # Cache
+# ----------------------
 .cache/
 .eslintcache
 .stylelintcache
 *.tsbuildinfo
-.pytest_cache/
 
+# ----------------------
+# Frontend specific
+# ----------------------
+.tailwindcss/
+*.pem
+.vercel
+.netlify
+
+# ----------------------
 # Misc
+# ----------------------
 *.log
 *.tmp
 *.temp
+*.mo
+*.pot
