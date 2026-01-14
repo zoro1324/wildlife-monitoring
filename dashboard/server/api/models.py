@@ -65,3 +65,33 @@ class DeviceMessage(models.Model):
     
     def __str__(self):
         return f"{self.device.device_id} - {self.timestamp}"
+
+
+class CapturedImage(models.Model):
+    """
+    Model to store images captured by ESP32 devices and their YOLO classifications.
+    """
+    ANIMAL_CHOICES = [
+        ('Bear', 'Bear'),
+        ('Bision', 'Bision'),
+        ('Elephant', 'Elephant'),
+        ('Human', 'Human'),
+        ('Leopord', 'Leopord'),
+        ('Lion', 'Lion'),
+        ('Tiger', 'Tiger'),
+        ('Wild Boar', 'Wild Boar'),
+    ]
+    
+    device = models.ForeignKey(Device, on_delete=models.CASCADE, related_name="captured_images")
+    image = models.ImageField(upload_to="captured_images/%Y/%m/%d/")
+    animal_type = models.CharField(max_length=20, choices=ANIMAL_CHOICES)
+    confidence = models.FloatField(help_text="Confidence score from YOLO model (0-1)")
+    timestamp = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-timestamp']
+        verbose_name = "Captured Image"
+        verbose_name_plural = "Captured Images"
+    
+    def __str__(self):
+        return f"{self.device.device_id} - {self.animal_type} ({self.confidence:.2%})"

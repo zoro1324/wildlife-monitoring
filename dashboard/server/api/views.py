@@ -1,526 +1,379 @@
-from django.shortcuts import render
-from django.contrib.auth.models import User
-from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework import status, generics
+from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
-from django.contrib.auth import authenticate
-import re
-from .models import Device, DeviceMessage
+from django.contrib.auth.models import User
+from django.shortcuts import get_object_or_404
+from pathlib import Path
+from PIL import Image
+import io
+
+from .models import Device, DeviceMessage, CapturedImage
+from .serializers import (
+    UserSerializer,
+    SignupSerializer,
+    LoginSerializer,
+    LogoutSerializer,
+    DeviceSerializer,
+    DeviceRegisterSerializer,
+    DeviceUpdateSerializer,
+    DeviceMessageSerializer,
+    DeviceMessageCreateSerializer,
+    CapturedImageSerializer,
+    CapturedImageUploadSerializer,
+)
 
 
-@api_view(["POST"])
-@permission_classes([AllowAny])
-def signup(request):
-    """
-    Register a new user.
-    Expected data: username, email, password, mobile_number (optional), first_name (optional), last_name (optional)
-    """
-    username = request.data.get("username")
-    email = request.data.get("email")
-    password = request.data.get("password")
-    mobile_number = request.data.get("mobile_number", "")
-    first_name = request.data.get("first_name", "")
-    last_name = request.data.get("last_name", "")
+# ==================== Authentication Views ====================
 
-    # Validation
-    if not username or not email or not password:
-        return Response(
-            {"error": "Username, email, and password are required."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    # Validate username (alphanumeric and underscores only)
-    if not re.match(r"^[a-zA-Z0-9_]+$", username):
-        return Response(
-            {"error": "Username can only contain letters, numbers, and underscores."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    # Validate password length
-    if len(password) < 8:
-        return Response(
-            {"error": "Password must be at least 8 characters long."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    # Check if username already exists
-    if User.objects.filter(username=username).exists():
-        return Response(
-            {"error": "Username already exists."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    # Check if email already exists
-    if User.objects.filter(email=email).exists():
-        return Response(
-            {"error": "Email already registered."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+class SignupView(APIView):
+    """Register a new user."""
+    permission_classes = [AllowAny]
     
-    # Check if mobile number already exists (if provided)
-    if mobile_number:
-        # Basic mobile number validation
-        if not re.match(r"^\+?[1-9]\d{1,14}$", mobile_number):
-            return Response(
-                {"error": "Invalid mobile number format. Use international format (e.g., +1234567890)."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        
-        from .models import UserProfile
-        if UserProfile.objects.filter(mobile_number=mobile_number).exists():
-            return Response(
-                {"error": "Mobile number already registered."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-    # Create user
-    try:
-        user = User.objects.create_user(
-            username=username,
-            email=email,
-            password=password,
-            first_name=first_name,
-            last_name=last_name,
-        )
-        
-        # Save mobile number to profile
-        if mobile_number:
-            user.profile.mobile_number = mobile_number
-            user.profile.save()
-        
-        # Generate tokens for automatic login after signup
-        refresh = RefreshToken.for_user(user)
-        
-        return Response(
-            {
+    def post(self, request):
+        serializer = SignupSerializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.save()
+            
+            # Generate tokens
+            refresh = RefreshToken.for_user(user)
+            
+            return Response({
                 "message": "User registered successfully.",
-                "user": {
-                    "id": user.id,
-                    "username": user.username,
-                    "email": user.email,
-                    "first_name": user.first_name,
-                    "last_name": user.last_name,
-                    "mobile_number": mobile_number,
-                },
+                "user": UserSerializer(user).data,
                 "tokens": {
                     "refresh": str(refresh),
                     "access": str(refresh.access_token),
-                },
-            },
-            status=status.HTTP_201_CREATED,
-        )
-    except Exception as e:
-        return Response(
-            {"error": f"Failed to create user: {str(e)}"},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
-
-
-@api_view(["POST"])
-@permission_classes([AllowAny])
-def login(request):
-    """
-    Login user with username/email/mobile and password.
-    Expected data: username (or email or mobile_number), password
-    """
-    username_or_email_or_mobile = request.data.get("username") or request.data.get("email") or request.data.get("mobile_number")
-    password = request.data.get("password")
-
-    if not username_or_email_or_mobile or not password:
-        return Response(
-            {"error": "Username/email/mobile and password are required."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    # Try to find user by username, email, or mobile number
-    user = None
-    username = None
-    
-    if "@" in username_or_email_or_mobile:
-        # It's an email
-        try:
-            user = User.objects.get(email=username_or_email_or_mobile)
-            username = user.username
-        except User.DoesNotExist:
-            pass
-    elif username_or_email_or_mobile.startswith("+") or username_or_email_or_mobile.isdigit():
-        # It's likely a mobile number
-        from .models import UserProfile
-        try:
-            profile = UserProfile.objects.get(mobile_number=username_or_email_or_mobile)
-            user = profile.user
-            username = user.username
-        except UserProfile.DoesNotExist:
-            pass
-    else:
-        # It's a username
-        username = username_or_email_or_mobile
-
-    # Authenticate
-    user = authenticate(username=username, password=password)
-
-    if user is None:
-        return Response(
-            {"error": "Invalid credentials."},
-            status=status.HTTP_401_UNAUTHORIZED,
-        )
-
-    if not user.is_active:
-        return Response(
-            {"error": "Account is disabled."},
-            status=status.HTTP_403_FORBIDDEN,
-        )
-
-    # Generate tokens
-    refresh = RefreshToken.for_user(user)
-    
-    # Get mobile number from profile
-    mobile_number = user.profile.mobile_number if hasattr(user, 'profile') else None
-
-    return Response(
-        {
-            "message": "Login successful.",
-            "user": {
-                "id": user.id,
-                "username": user.username,
-                "email": user.email,
-                "first_name": user.first_name,
-                "last_name": user.last_name,
-                "mobile_number": mobile_number,
-            },
-            "tokens": {
-                "refresh": str(refresh),
-                "access": str(refresh.access_token),
-            },
-        },
-        status=status.HTTP_200_OK,
-    )
-
-
-@api_view(["POST"])
-@permission_classes([IsAuthenticated])
-def logout(request):
-    """
-    Logout user by blacklisting the refresh token.
-    Expected data: refresh (refresh token)
-    """
-    try:
-        refresh_token = request.data.get("refresh")
-        
-        if not refresh_token:
-            return Response(
-                {"error": "Refresh token is required."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        
-        # Blacklist the token
-        token = RefreshToken(refresh_token)
-        token.blacklist()
-        
-        return Response(
-            {"message": "Logout successful."},
-            status=status.HTTP_200_OK,
-        )
-    except Exception as e:
-        return Response(
-            {"error": f"Logout failed: {str(e)}"},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-
-@api_view(["GET"])
-@permission_classes([IsAuthenticated])
-def user_profile(request):
-    """
-    Get current user profile information.
-    """
-    user = request.user
-    mobile_number = user.profile.mobile_number if hasattr(user, 'profile') else None
-    
-    return Response(
-        {
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "first_name": user.first_name,
-            "last_name": user.last_name,
-            "mobile_number": mobile_number,
-            "is_staff": user.is_staff,
-            "date_joined": user.date_joined,
-        },
-        status=status.HTTP_200_OK,
-    )
-
-
-@api_view(["POST"])
-@permission_classes([AllowAny])
-@api_view(["POST"])
-@permission_classes([AllowAny])
-def register_device(request):
-    """
-    Register or update device information.
-    Expected data: {"device_id": "camera_name", "lat": 12.34, "lon": 56.78, "owned_by": user_id}
-    """
-    try:
-        device_id = request.data.get("device_id")
-        lat = request.data.get("lat")
-        lon = request.data.get("lon")
-        owned_by_id = request.data.get("owned_by")
-        
-        if not device_id:
-            return Response(
-                {"error": "device_id is required"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        
-        # Get or create device
-        device, created = Device.objects.get_or_create(device_id=device_id)
-        
-        # Update fields
-        if lat is not None:
-            device.lat = lat
-        if lon is not None:
-            device.lon = lon
-        if owned_by_id:
-            try:
-                owner = User.objects.get(id=owned_by_id)
-                device.owned_by = owner
-            except User.DoesNotExist:
-                pass
-        
-        device.save()
-        
-        return Response(
-            {
-                "status": "success",
-                "message": "Device registered" if created else "Device updated",
-                "device": {
-                    "id": device.id,
-                    "device_id": device.device_id,
-                    "lat": device.lat,
-                    "lon": device.lon,
-                    "owned_by": device.owned_by.id if device.owned_by else None,
-                    "created_at": device.created_at.isoformat(),
-                    "updated_at": device.updated_at.isoformat()
                 }
-            },
-            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
-        )
-    except Exception as e:
-        return Response(
-            {"error": str(e)},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
+            }, status=status.HTTP_201_CREATED)
+        
+        return Response({"errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(["POST"])
-@permission_classes([AllowAny])
-def device_message(request):
-    """
-    Receive device connection messages/pings from ESP32.
-    Expected data: {"device_id": "camera_name", "message": "device_data"}
-    """
-    try:
-        device_id = request.data.get("device_id")
-        message = request.data.get("message")
+class LoginView(APIView):
+    """Login user with username/email/mobile and password."""
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        serializer = LoginSerializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.validated_data['user']
+            
+            # Generate tokens
+            refresh = RefreshToken.for_user(user)
+            
+            return Response({
+                "message": "Login successful.",
+                "user": UserSerializer(user).data,
+                "tokens": {
+                    "refresh": str(refresh),
+                    "access": str(refresh.access_token),
+                }
+            }, status=status.HTTP_200_OK)
         
-        if not device_id or not message:
-            return Response(
-                {"error": "device_id and message are required"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        
-        # Get or create device
-        device, created = Device.objects.get_or_create(device_id=device_id)
-        
-        # Create device message
-        device_msg = DeviceMessage.objects.create(
-            device=device,
-            message=message
-        )
-        
-        return Response(
-            {
-                "status": "success",
-                "message": "Device message stored",
-                "device_id": device.device_id,
-                "timestamp": device_msg.timestamp.isoformat()
-            },
-            status=status.HTTP_201_CREATED,
-        )
-    except Exception as e:
-        return Response(
-            {"error": str(e)},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
+        return Response({"errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(["GET"])
-@permission_classes([IsAuthenticated])
-def device_list(request):
-    """
-    Get list of all devices or filter by device_id.
-    Query params: device_id (optional)
-    """
-    try:
-        device_id = request.query_params.get("device_id")
+class LogoutView(APIView):
+    """Logout user by blacklisting the refresh token."""
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        serializer = LogoutSerializer(data=request.data)
+        if serializer.is_valid():
+            try:
+                token = RefreshToken(serializer.validated_data['refresh'])
+                token.blacklist()
+                return Response({"message": "Logout successful."}, status=status.HTTP_200_OK)
+            except Exception as e:
+                return Response({"error": f"Logout failed: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response({"errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class UserProfileView(APIView):
+    """Get current user profile information."""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        serializer = UserSerializer(request.user)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+# ==================== Device Views ====================
+
+class DeviceListView(generics.ListAPIView):
+    """List all devices or filter by device_id."""
+    permission_classes = [IsAuthenticated]
+    serializer_class = DeviceSerializer
+    
+    def get_queryset(self):
+        queryset = Device.objects.all()
+        device_id = self.request.query_params.get('device_id')
+        if device_id:
+            queryset = queryset.filter(device_id=device_id)
+        return queryset
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        device_id = request.query_params.get('device_id')
         
         if device_id:
-            # Get specific device
-            try:
-                device = Device.objects.get(device_id=device_id)
-                return Response(
-                    {
-                        "id": device.id,
-                        "device_id": device.device_id,
-                        "lat": device.lat,
-                        "lon": device.lon,
-                        "owned_by": device.owned_by.id if device.owned_by else None,
-                        "owned_by_username": device.owned_by.username if device.owned_by else None,
-                        "created_at": device.created_at.isoformat(),
-                        "updated_at": device.updated_at.isoformat()
-                    },
-                    status=status.HTTP_200_OK,
-                )
-            except Device.DoesNotExist:
-                return Response(
-                    {"error": "Device not found"},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
-        else:
-            # Get all devices
-            devices = Device.objects.all()
-            devices_data = []
-            for device in devices:
-                devices_data.append({
-                    "id": device.id,
-                    "device_id": device.device_id,
-                    "lat": device.lat,
-                    "lon": device.lon,
-                    "owned_by": device.owned_by.id if device.owned_by else None,
-                    "owned_by_username": device.owned_by.username if device.owned_by else None,
-                    "created_at": device.created_at.isoformat(),
-                    "updated_at": device.updated_at.isoformat()
-                })
+            # Return single device
+            device = queryset.first()
+            if not device:
+                return Response({"error": "Device not found"}, status=status.HTTP_404_NOT_FOUND)
+            serializer = self.get_serializer(device)
+            return Response(serializer.data)
+        
+        # Return all devices
+        serializer = self.get_serializer(queryset, many=True)
+        return Response({
+            "count": queryset.count(),
+            "devices": serializer.data
+        })
+
+
+class DeviceRegisterView(APIView):
+    """Register or update device information."""
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        serializer = DeviceRegisterSerializer(data=request.data)
+        if serializer.is_valid():
+            device, created = serializer.save()
+            device_serializer = DeviceSerializer(device)
             
-            return Response(
-                {
-                    "count": len(devices_data),
-                    "devices": devices_data
-                },
-                status=status.HTTP_200_OK,
-            )
-    except Exception as e:
-        return Response(
-            {"error": str(e)},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
+            return Response({
+                "status": "success",
+                "message": "Device registered" if created else "Device updated",
+                "device": device_serializer.data
+            }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+        
+        return Response({"errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(["PUT"])
-@permission_classes([IsAuthenticated])
-def device_edit(request, device_id):
-    """
-    Edit device information.
-    Expected data: lat, lon, owned_by (all optional)
-    """
-    try:
-        # Get device
-        try:
-            device = Device.objects.get(device_id=device_id)
-        except Device.DoesNotExist:
-            return Response(
-                {"error": "Device not found"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+class DeviceDetailView(APIView):
+    """Edit or delete a device."""
+    permission_classes = [IsAuthenticated]
+    
+    def get_object(self, device_id):
+        return get_object_or_404(Device, device_id=device_id)
+    
+    def put(self, request, device_id):
+        """Update device information."""
+        device = self.get_object(device_id)
+        serializer = DeviceUpdateSerializer(device, data=request.data, partial=True)
         
-        # Update fields
-        lat = request.data.get("lat")
-        lon = request.data.get("lon")
-        owned_by_id = request.data.get("owned_by")
-        
-        if lat is not None:
-            device.lat = lat
-        if lon is not None:
-            device.lon = lon
-        if owned_by_id is not None:
-            if owned_by_id:
-                try:
-                    owner = User.objects.get(id=owned_by_id)
-                    device.owned_by = owner
-                except User.DoesNotExist:
-                    return Response(
-                        {"error": "User not found"},
-                        status=status.HTTP_404_NOT_FOUND,
-                    )
-            else:
-                device.owned_by = None
-        
-        device.save()
-        
-        return Response(
-            {
+        if serializer.is_valid():
+            device = serializer.save()
+            device_serializer = DeviceSerializer(device)
+            
+            return Response({
                 "status": "success",
                 "message": "Device updated",
-                "device": {
-                    "id": device.id,
-                    "device_id": device.device_id,
-                    "lat": device.lat,
-                    "lon": device.lon,
-                    "owned_by": device.owned_by.id if device.owned_by else None,
-                    "owned_by_username": device.owned_by.username if device.owned_by else None,
-                    "created_at": device.created_at.isoformat(),
-                    "updated_at": device.updated_at.isoformat()
-                }
-            },
-            status=status.HTTP_200_OK,
-        )
-    except Exception as e:
-        return Response(
-            {"error": str(e)},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
-
-
-@api_view(["DELETE"])
-@permission_classes([IsAuthenticated])
-def device_delete(request, device_id):
-    """
-    Delete a device and all its associated messages.
-    """
-    try:
-        # Get device
-        try:
-            device = Device.objects.get(device_id=device_id)
-        except Device.DoesNotExist:
-            return Response(
-                {"error": "Device not found"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+                "device": device_serializer.data
+            }, status=status.HTTP_200_OK)
         
+        return Response({"errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+    
+    def delete(self, request, device_id):
+        """Delete a device and all its associated data."""
+        device = self.get_object(device_id)
         device_name = device.device_id
-        
-        # Delete device (messages will be cascade deleted)
         device.delete()
         
-        return Response(
-            {
+        return Response({
+            "status": "success",
+            "message": f"Device '{device_name}' deleted successfully"
+        }, status=status.HTTP_200_OK)
+
+
+# ==================== Device Message Views ====================
+
+class DeviceMessageView(APIView):
+    """Receive device connection messages/pings from ESP32."""
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        serializer = DeviceMessageCreateSerializer(data=request.data)
+        if serializer.is_valid():
+            device_message = serializer.save()
+            
+            return Response({
                 "status": "success",
-                "message": f"Device '{device_name}' deleted successfully"
-            },
-            status=status.HTTP_200_OK,
-        )
-    except Exception as e:
-        return Response(
-            {"error": str(e)},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
+                "message": "Device message stored",
+                "device_id": device_message.device.device_id,
+                "timestamp": device_message.timestamp.isoformat()
+            }, status=status.HTTP_201_CREATED)
+        
+        return Response({"errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(["GET"])
-@permission_classes([IsAuthenticated])
-def test_view(request):
-	return Response({"message": "JWT Authentication is working!", "user": str(request.user)})
+# ==================== Captured Image Views ====================
+
+class CapturedImageView(APIView):
+    """Receive image from ESP32 and run YOLO classification."""
+    permission_classes = [AllowAny]
+    parser_classes = [MultiPartParser, FormParser]
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._model = None
+    
+    def get_model(self):
+        """Lazy load YOLO model."""
+        if self._model is None:
+            from ultralytics import YOLO
+            model_path = Path(__file__).resolve().parent.parent.parent.parent / "best_models" / "best.pt"
+            
+            if not model_path.exists():
+                raise FileNotFoundError(f"YOLO model not found at {model_path}")
+            
+            self._model = YOLO(str(model_path))
+        return self._model
+    
+    def classify_image(self, image_file):
+        """Run YOLO classification on the image."""
+        model = self.get_model()
+        
+        # Read and process image
+        image_data = image_file.read()
+        image_file.seek(0)  # Reset file pointer for saving later
+        image = Image.open(io.BytesIO(image_data))
+        
+        # Run inference
+        results = model.predict(image, conf=0.25, verbose=False)
+        
+        animal_type = None
+        confidence = 0.0
+        
+        if results and len(results) > 0:
+            result = results[0]
+            
+            if result.probs is not None:
+                # Classification mode
+                confidence = float(result.probs.top1conf)
+                class_id = int(result.probs.top1)
+                animal_type = result.names[class_id]
+            elif result.boxes and len(result.boxes) > 0:
+                # Detection mode
+                best_box = result.boxes[0]
+                confidence = float(best_box.conf[0])
+                class_id = int(best_box.cls[0])
+                animal_type = result.names[class_id]
+        
+        return animal_type, confidence
+    
+    def post(self, request):
+        serializer = CapturedImageUploadSerializer(data=request.data)
+        
+        if not serializer.is_valid():
+            return Response({"errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        
+        device_id = serializer.validated_data['device_id']
+        image_file = serializer.validated_data['image']
+        
+        try:
+            # Run YOLO classification
+            animal_type, confidence = self.classify_image(image_file)
+            
+            # Handle no detection
+            if not animal_type:
+                return Response({
+                    "status": "no_detection",
+                    "message": "No animal detected in the image",
+                    "data": {
+                        "device_id": device_id,
+                        "animal_type": None,
+                        "confidence": 0.0,
+                        "timestamp": None
+                    }
+                }, status=status.HTTP_200_OK)
+            
+            # Validate animal type
+            valid_animals = [choice[0] for choice in CapturedImage.ANIMAL_CHOICES]
+            if animal_type not in valid_animals:
+                animal_type = "Human"  # Default fallback
+            
+            # Get or create device
+            device, _ = Device.objects.get_or_create(device_id=device_id)
+            
+            # Save captured image
+            captured_image = CapturedImage.objects.create(
+                device=device,
+                image=image_file,
+                animal_type=animal_type,
+                confidence=confidence
+            )
+            
+            # Build response
+            image_url = None
+            if captured_image.image:
+                image_url = request.build_absolute_uri(captured_image.image.url)
+            
+            return Response({
+                "status": "success",
+                "message": "Image captured and classified",
+                "data": {
+                    "id": captured_image.id,
+                    "device_id": captured_image.device.device_id,
+                    "animal_type": captured_image.animal_type,
+                    "confidence": captured_image.confidence,
+                    "confidence_percentage": f"{captured_image.confidence * 100:.2f}%",
+                    "timestamp": captured_image.timestamp.isoformat(),
+                    "image_url": image_url
+                }
+            }, status=status.HTTP_201_CREATED)
+            
+        except FileNotFoundError as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return Response({"error": f"Classification error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class CapturedImageListView(generics.ListAPIView):
+    """List all captured images with filtering options."""
+    permission_classes = [IsAuthenticated]
+    serializer_class = CapturedImageSerializer
+    
+    def get_queryset(self):
+        queryset = CapturedImage.objects.all()
+        
+        # Filter by device_id
+        device_id = self.request.query_params.get('device_id')
+        if device_id:
+            queryset = queryset.filter(device__device_id=device_id)
+        
+        # Filter by animal_type
+        animal_type = self.request.query_params.get('animal_type')
+        if animal_type:
+            queryset = queryset.filter(animal_type=animal_type)
+        
+        return queryset.order_by('-timestamp')
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        
+        return Response({
+            "count": queryset.count(),
+            "images": serializer.data
+        })
+
+
+# ==================== Test View ====================
+
+class TestView(APIView):
+    """Test endpoint for JWT authentication."""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        return Response({
+            "message": "JWT Authentication is working!",
+            "user": str(request.user)
+        })
