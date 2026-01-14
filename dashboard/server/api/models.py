@@ -35,9 +35,28 @@ def save_user_profile(sender, instance, **kwargs):
 
 class Device(models.Model):
     """
-    Model to store device messages from ESP32 with timestamp.
+    Model to store IoT device information.
     """
-    device_id = models.CharField(max_length=100)
+    device_id = models.CharField(max_length=100, unique=True)
+    lat = models.FloatField(null=True, blank=True, help_text="Latitude")
+    lon = models.FloatField(null=True, blank=True, help_text="Longitude")
+    owned_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="devices")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return self.device_id
+    
+    class Meta:
+        verbose_name = "Device"
+        verbose_name_plural = "Devices"
+
+
+class DeviceMessage(models.Model):
+    """
+    Model to store device connection messages/pings from ESP32.
+    """
+    device = models.ForeignKey(Device, on_delete=models.CASCADE, related_name="messages")
     message = models.TextField()
     timestamp = models.DateTimeField(auto_now_add=True)
     
@@ -45,4 +64,4 @@ class Device(models.Model):
         ordering = ['-timestamp']
     
     def __str__(self):
-        return f"{self.device_id} - {self.timestamp}"
+        return f"{self.device.device_id} - {self.timestamp}"

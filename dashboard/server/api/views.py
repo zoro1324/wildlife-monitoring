@@ -8,7 +8,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
 from django.contrib.auth import authenticate
 import re
-from .models import Device
+from .models import Device, DeviceMessage
 
 
 @api_view(["POST"])
@@ -257,9 +257,70 @@ def user_profile(request):
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def register_device(request):
+    """
+    Register or update device information.
+    Expected data: {"device_id": "camera_name", "lat": 12.34, "lon": 56.78, "owned_by": user_id}
+    """
+    try:
+        device_id = request.data.get("device_id")
+        lat = request.data.get("lat")
+        lon = request.data.get("lon")
+        owned_by_id = request.data.get("owned_by")
+        
+        if not device_id:
+            return Response(
+                {"error": "device_id is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        # Get or create device
+        device, created = Device.objects.get_or_create(device_id=device_id)
+        
+        # Update fields
+        if lat is not None:
+            device.lat = lat
+        if lon is not None:
+            device.lon = lon
+        if owned_by_id:
+            try:
+                owner = User.objects.get(id=owned_by_id)
+                device.owned_by = owner
+            except User.DoesNotExist:
+                pass
+        
+        device.save()
+        
+        return Response(
+            {
+                "status": "success",
+                "message": "Device registered" if created else "Device updated",
+                "device": {
+                    "id": device.id,
+                    "device_id": device.device_id,
+                    "lat": device.lat,
+                    "lon": device.lon,
+                    "owned_by": device.owned_by.id if device.owned_by else None,
+                    "created_at": device.created_at.isoformat(),
+                    "updated_at": device.updated_at.isoformat()
+                }
+            },
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+    except Exception as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
 def device_message(request):
     """
-    Receive device messages from ESP32 and store in database.
+    Receive device connection messages/pings from ESP32.
     Expected data: {"device_id": "camera_name", "message": "device_data"}
     """
     try:
@@ -272,9 +333,12 @@ def device_message(request):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         
-        # Create and save device message
-        device = Device.objects.create(
-            device_id=device_id,
+        # Get or create device
+        device, created = Device.objects.get_or_create(device_id=device_id)
+        
+        # Create device message
+        device_msg = DeviceMessage.objects.create(
+            device=device,
             message=message
         )
         
@@ -283,9 +347,171 @@ def device_message(request):
                 "status": "success",
                 "message": "Device message stored",
                 "device_id": device.device_id,
-                "timestamp": device.timestamp.isoformat()
+                "timestamp": device_msg.timestamp.isoformat()
             },
             status=status.HTTP_201_CREATED,
+        )
+    except Exception as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def device_list(request):
+    """
+    Get list of all devices or filter by device_id.
+    Query params: device_id (optional)
+    """
+    try:
+        device_id = request.query_params.get("device_id")
+        
+        if device_id:
+            # Get specific device
+            try:
+                device = Device.objects.get(device_id=device_id)
+                return Response(
+                    {
+                        "id": device.id,
+                        "device_id": device.device_id,
+                        "lat": device.lat,
+                        "lon": device.lon,
+                        "owned_by": device.owned_by.id if device.owned_by else None,
+                        "owned_by_username": device.owned_by.username if device.owned_by else None,
+                        "created_at": device.created_at.isoformat(),
+                        "updated_at": device.updated_at.isoformat()
+                    },
+                    status=status.HTTP_200_OK,
+                )
+            except Device.DoesNotExist:
+                return Response(
+                    {"error": "Device not found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+        else:
+            # Get all devices
+            devices = Device.objects.all()
+            devices_data = []
+            for device in devices:
+                devices_data.append({
+                    "id": device.id,
+                    "device_id": device.device_id,
+                    "lat": device.lat,
+                    "lon": device.lon,
+                    "owned_by": device.owned_by.id if device.owned_by else None,
+                    "owned_by_username": device.owned_by.username if device.owned_by else None,
+                    "created_at": device.created_at.isoformat(),
+                    "updated_at": device.updated_at.isoformat()
+                })
+            
+            return Response(
+                {
+                    "count": len(devices_data),
+                    "devices": devices_data
+                },
+                status=status.HTTP_200_OK,
+            )
+    except Exception as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+
+@api_view(["PUT"])
+@permission_classes([IsAuthenticated])
+def device_edit(request, device_id):
+    """
+    Edit device information.
+    Expected data: lat, lon, owned_by (all optional)
+    """
+    try:
+        # Get device
+        try:
+            device = Device.objects.get(device_id=device_id)
+        except Device.DoesNotExist:
+            return Response(
+                {"error": "Device not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        
+        # Update fields
+        lat = request.data.get("lat")
+        lon = request.data.get("lon")
+        owned_by_id = request.data.get("owned_by")
+        
+        if lat is not None:
+            device.lat = lat
+        if lon is not None:
+            device.lon = lon
+        if owned_by_id is not None:
+            if owned_by_id:
+                try:
+                    owner = User.objects.get(id=owned_by_id)
+                    device.owned_by = owner
+                except User.DoesNotExist:
+                    return Response(
+                        {"error": "User not found"},
+                        status=status.HTTP_404_NOT_FOUND,
+                    )
+            else:
+                device.owned_by = None
+        
+        device.save()
+        
+        return Response(
+            {
+                "status": "success",
+                "message": "Device updated",
+                "device": {
+                    "id": device.id,
+                    "device_id": device.device_id,
+                    "lat": device.lat,
+                    "lon": device.lon,
+                    "owned_by": device.owned_by.id if device.owned_by else None,
+                    "owned_by_username": device.owned_by.username if device.owned_by else None,
+                    "created_at": device.created_at.isoformat(),
+                    "updated_at": device.updated_at.isoformat()
+                }
+            },
+            status=status.HTTP_200_OK,
+        )
+    except Exception as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
+def device_delete(request, device_id):
+    """
+    Delete a device and all its associated messages.
+    """
+    try:
+        # Get device
+        try:
+            device = Device.objects.get(device_id=device_id)
+        except Device.DoesNotExist:
+            return Response(
+                {"error": "Device not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        
+        device_name = device.device_id
+        
+        # Delete device (messages will be cascade deleted)
+        device.delete()
+        
+        return Response(
+            {
+                "status": "success",
+                "message": f"Device '{device_name}' deleted successfully"
+            },
+            status=status.HTTP_200_OK,
         )
     except Exception as e:
         return Response(
