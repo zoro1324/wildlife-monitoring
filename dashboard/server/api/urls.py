@@ -1,18 +1,35 @@
 from django.urls import path
-from . import views
+from .views import (
+    SignupView,
+    LoginView,
+    LogoutView,
+    UserProfileView,
+    DeviceListView,
+    DeviceRegisterView,
+    DeviceDetailView,
+    DeviceMessageView,
+    CapturedImageView,
+    CapturedImageListView,
+    TestView,
+)
 
 urlpatterns = [
     # Authentication endpoints
-    path("auth/signup/", views.signup, name="signup"),
-    path("auth/login/", views.login, name="login"),
-    path("auth/logout/", views.logout, name="logout"),
-    path("auth/profile/", views.user_profile, name="user_profile"),
-    # Device endpoints
-    path("device/", views.device_list, name="device_list"),
-    path("device/<str:device_id>/", views.device_edit, name="device_edit"),
-    path("device/<str:device_id>/delete/", views.device_delete, name="device_delete"),
-    path("device/register/", views.register_device, name="register_device"),
-    path("device/message/", views.device_message, name="device_message"),
+    path("auth/signup/", SignupView.as_view(), name="signup"),
+    path("auth/login/", LoginView.as_view(), name="login"),
+    path("auth/logout/", LogoutView.as_view(), name="logout"),
+    path("auth/profile/", UserProfileView.as_view(), name="user_profile"),
+    
+    # Device management endpoints
+    path("device/", DeviceListView.as_view(), name="device_list"),
+    path("device/register/", DeviceRegisterView.as_view(), name="device_register"),
+    path("device/message/", DeviceMessageView.as_view(), name="device_message"),
+    path("device/capture/", CapturedImageView.as_view(), name="capture_image"),
+    path("device/<str:device_id>/", DeviceDetailView.as_view(), name="device_detail"),
+    
+    # Captured images endpoints
+    path("images/", CapturedImageListView.as_view(), name="captured_images"),
+    
     # Test endpoint
-    path("test/", views.test_view, name="test"),
+    path("test/", TestView.as_view(), name="test"),
 ]
