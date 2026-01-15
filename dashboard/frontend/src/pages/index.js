@@ -1,5 +1,7 @@
 export { default as Login } from './Login';
+export { default as Signup } from './Signup';
 export { default as Dashboard } from './Dashboard';
+export { default as UserDashboard } from './UserDashboard';
 export { default as LiveMonitoring } from './LiveMonitoring';
 export { default as MapTracking } from './MapTracking';
 export { default as DetectionHistory } from './DetectionHistory';
@@ -7,3 +9,4 @@ export { default as AlertsCenter } from './AlertsCenter';
 export { default as CameraHealth } from './CameraHealth';
 export { default as Analytics } from './Analytics';
 export { default as Settings } from './Settings';
+export { default as DeviceSimulator } from './DeviceSimulator';

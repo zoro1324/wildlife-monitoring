@@ -1,12 +1,16 @@
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, Circle, Polyline } from 'react-leaflet';
 import L from 'leaflet';
-import { Camera, AlertTriangle, Activity, Eye, ChevronRight, Clock, Shield, Users, MapPin } from 'lucide-react';
+import { Camera, AlertTriangle, Activity, Eye, ChevronRight, Clock, Shield, Users, MapPin, Upload } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useAlerts } from '../context/AlertContext';
-import { Card, Badge, Button, StatCard } from '../components/ui';
+import { Card, Badge, Button, StatCard, EmptyState } from '../components/ui';
 import { formatSmartDate, getAnimalIcon, getRiskConfig } from '../utils/helpers';
-import { mockMovementTrails, mapZones } from '../data/mockData';
+
+// Default map zones when no data
+const defaultMapZones = [
+  { id: 'default', name: 'Monitoring Area', bounds: [[12.9, 77.5], [13.0, 77.7]], color: '#166534' }
+];
 
 // Fix Leaflet default marker icon issue
 delete L.Icon.Default.prototype._getIconUrl;
@@ -85,7 +89,7 @@ const trailColors = {
 
 function RangerDashboard() {
   const navigate = useNavigate();
-  const { cameras, detections } = useApp();
+  const { cameras, detections, isLoadingData } = useApp();
   const { alerts, unresolvedCount } = useAlerts();
 
   const onlineCameras = cameras.filter((c) => c.status === 'online').length;
@@ -96,9 +100,12 @@ function RangerDashboard() {
   const recentDetections = detections.slice(0, 5);
   const criticalAlertsList = alerts.filter((a) => a.severity === 'danger' && !a.isResolved).slice(0, 3);
 
-  // Map configuration
-  const mapCenter = [29.52, 79.06];
-  const mapZoom = 13;
+  // Map configuration - center on first camera location or default
+  const firstCameraWithLocation = cameras.find(c => c.location?.lat && c.location?.lng);
+  const mapCenter = firstCameraWithLocation 
+    ? [firstCameraWithLocation.location.lat, firstCameraWithLocation.location.lng]
+    : [12.9716, 77.5946]; // Default to Bangalore
+  const mapZoom = 12;
 
   return (
     <div className="space-y-6 pb-16 lg:pb-0">
@@ -112,13 +119,22 @@ function RangerDashboard() {
             Real-time overview of wildlife monitoring
           </p>
         </div>
-        <Button
-          variant="primary"
-          leftIcon={<Eye className="w-4 h-4" />}
-          onClick={() => navigate('/ranger/live-monitoring')}
-        >
-          View Live Feeds
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            leftIcon={<Upload className="w-4 h-4" />}
+            onClick={() => navigate('/ranger/device-simulator')}
+          >
+            Simulate Device
+          </Button>
+          <Button
+            variant="primary"
+            leftIcon={<Eye className="w-4 h-4" />}
+            onClick={() => navigate('/ranger/live-monitoring')}
+          >
+            View Live Feeds
+          </Button>
+        </div>
       </div>
 
       {/* Stats Grid */}
@@ -127,13 +143,11 @@ function RangerDashboard() {
           title="Active Cameras"
           value={`${onlineCameras}/${cameras.length}`}
           icon={Camera}
-          trend={{ value: 5, isPositive: true }}
         />
         <StatCard
           title="Today's Detections"
           value={todayDetections}
           icon={Activity}
-          trend={{ value: 12, isPositive: true }}
         />
         <StatCard
           title="Active Alerts"
@@ -179,7 +193,7 @@ function RangerDashboard() {
             />
 
             {/* Risk Zones */}
-            {mapZones.map((zone) => (
+            {defaultMapZones.map((zone) => (
               <Circle
                 key={zone.id}
                 center={[(zone.bounds[0][0] + zone.bounds[1][0]) / 2, (zone.bounds[0][1] + zone.bounds[1][1]) / 2]}
@@ -193,8 +207,8 @@ function RangerDashboard() {
               />
             ))}
 
-            {/* Camera Markers */}
-            {cameras.map((camera) => (
+            {/* Camera Markers - only show cameras with visible locations */}
+            {cameras.filter(c => c.location && !c.locationHidden).map((camera) => (
               <Marker
                 key={camera.id}
                 position={[camera.location.lat, camera.location.lng]}
@@ -214,22 +228,8 @@ function RangerDashboard() {
               </Marker>
             ))}
 
-            {/* Movement Trails */}
-            {mockMovementTrails.map((trail) => (
-              <Polyline
-                key={trail.id}
-                positions={trail.points.map((p) => [p.lat, p.lng])}
-                pathOptions={{
-                  color: trailColors[trail.animalType] || '#166534',
-                  weight: 3,
-                  opacity: 0.7,
-                  dashArray: '8, 4',
-                }}
-              />
-            ))}
-
-            {/* Animal Detection Markers */}
-            {detections.map((detection) => (
+            {/* Animal Detection Markers - only show detections with visible locations */}
+            {detections.filter(d => d.location && !d.locationHidden).map((detection) => (
               <Marker
                 key={detection.id}
                 position={[detection.location.lat, detection.location.lng]}

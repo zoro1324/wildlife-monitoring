@@ -4,8 +4,12 @@ import L from 'leaflet';
 import { Layers, Camera, Navigation, AlertTriangle } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Card, Badge, Button } from '../components/ui';
-import { mockMovementTrails, mapZones } from '../data/mockData';
 import { cn, getAnimalIcon, formatSmartDate } from '../utils/helpers';
+
+// Default map zones
+const defaultMapZones = [
+  { id: 'zone-a', name: 'Zone A', bounds: [[12.9, 77.5], [13.0, 77.7]], color: '#166534' },
+];
 
 // Fix Leaflet default marker icon issue
 delete L.Icon.Default.prototype._getIconUrl;
@@ -49,14 +53,18 @@ function MapTracking() {
   const { cameras, detections } = useApp();
   const [showLayers, setShowLayers] = useState({
     cameras: true,
-    trails: true,
+    trails: false,
     zones: true,
     detections: true,
   });
   const [selectedTrail, setSelectedTrail] = useState(null);
 
-  const mapCenter = [29.52, 79.06];
-  const mapZoom = 13;
+  // Center map on first camera or default location
+  const firstCameraWithLocation = cameras.find(c => c.location?.lat && c.location?.lng);
+  const mapCenter = firstCameraWithLocation 
+    ? [firstCameraWithLocation.location.lat, firstCameraWithLocation.location.lng]
+    : [12.9716, 77.5946];
+  const mapZoom = 12;
 
   const trailColors = {
     elephant: '#92400E',
@@ -96,7 +104,7 @@ function MapTracking() {
               />
 
               {/* Risk Zones */}
-              {showLayers.zones && mapZones.map((zone) => (
+              {showLayers.zones && defaultMapZones.map((zone) => (
                 <Circle
                   key={zone.id}
                   center={[(zone.bounds[0][0] + zone.bounds[1][0]) / 2, (zone.bounds[0][1] + zone.bounds[1][1]) / 2]}
@@ -109,8 +117,8 @@ function MapTracking() {
                 />
               ))}
 
-              {/* Camera Markers */}
-              {showLayers.cameras && cameras.map((camera) => (
+              {/* Camera Markers - only show cameras with visible locations */}
+              {showLayers.cameras && cameras.filter(c => c.location && !c.locationHidden).map((camera) => (
                 <Marker
                   key={camera.id}
                   position={[camera.location.lat, camera.location.lng]}
@@ -133,22 +141,8 @@ function MapTracking() {
                 </Marker>
               ))}
 
-              {/* Movement Trails */}
-              {showLayers.trails && mockMovementTrails.map((trail) => (
-                <Polyline
-                  key={trail.id}
-                  positions={trail.points.map((p) => [p.lat, p.lng])}
-                  pathOptions={{
-                    color: trailColors[trail.animalType] || '#166534',
-                    weight: 3,
-                    opacity: 0.7,
-                    dashArray: '10, 5',
-                  }}
-                />
-              ))}
-
-              {/* Recent Detections */}
-              {showLayers.detections && detections.slice(0, 5).map((detection) => (
+              {/* Recent Detections - only show detections with visible locations */}
+              {showLayers.detections && detections.filter(d => d.location && !d.locationHidden).slice(0, 10).map((detection) => (
                 <Marker
                   key={detection.id}
                   position={[detection.location.lat, detection.location.lng]}
@@ -225,25 +219,29 @@ function MapTracking() {
           <Card>
             <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
               <Navigation className="w-4 h-4 mr-2" />
-              Active Trails
+              Recent Detections
             </h3>
             <div className="space-y-2">
-              {mockMovementTrails.map((trail) => (
-                <div
-                  key={trail.id}
-                  className="p-2 bg-gray-50 rounded-lg flex items-center justify-between"
-                >
-                  <div className="flex items-center space-x-2">
-                    <span className="text-lg">{getAnimalIcon(trail.animalType)}</span>
-                    <span className="text-sm font-medium text-gray-900 capitalize">
-                      {trail.animalType}
+              {detections.length > 0 ? (
+                detections.slice(0, 5).map((detection) => (
+                  <div
+                    key={detection.id}
+                    className="p-2 bg-gray-50 rounded-lg flex items-center justify-between"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <span className="text-lg">{getAnimalIcon(detection.animalType)}</span>
+                      <span className="text-sm font-medium text-gray-900 capitalize">
+                        {detection.animalName}
+                      </span>
+                    </div>
+                    <span className="text-xs text-gray-500">
+                      {detection.cameraId}
                     </span>
                   </div>
-                  <span className="text-xs text-gray-500">
-                    {trail.points.length} points
-                  </span>
-                </div>
-              ))}
+                ))
+              ) : (
+                <p className="text-sm text-gray-500 text-center py-2">No recent detections</p>
+              )}
             </div>
           </Card>
         </div>

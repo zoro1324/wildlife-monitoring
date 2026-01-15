@@ -1,13 +1,81 @@
-import { createContext, useContext, useState, useEffect } from 'react';
-import { mockCameras, mockDetections } from '../data/mockData';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { devicesAPI, detectionsAPI } from '../services/api';
+import { useAuth } from './AuthContext';
 
 const AppContext = createContext(null);
 
+// Transform backend device to frontend camera format
+const transformDevice = (device) => ({
+  id: device.device_id,
+  name: device.device_id,
+  zone: 'Zone A', // Default zone
+  status: 'online', // Backend doesn't track online status yet
+  battery: 85, // Default battery level
+  signalStrength: 90, // Default signal
+  solarCharging: true,
+  location: device.location?.visible 
+    ? { lat: device.location.lat || 0, lng: device.location.lon || 0 }
+    : null, // Hide location for public users
+  locationHidden: !device.location?.visible,
+  lastSeen: device.updated_at || new Date().toISOString(),
+  owner: device.owned_by_username,
+});
+
+// Transform backend detection to frontend format
+const transformDetection = (detection) => {
+  // Map backend animal types to frontend format
+  const animalTypeMap = {
+    'Bear': 'bear',
+    'Bision': 'bison',
+    'Elephant': 'elephant',
+    'Human': 'human',
+    'Leopord': 'leopard',
+    'Lion': 'lion',
+    'Tiger': 'tiger',
+    'Wild Boar': 'boar',
+  };
+
+  const animalType = animalTypeMap[detection.animal_type] || detection.animal_type.toLowerCase();
+  
+  // Determine risk level based on animal type
+  const getRiskLevel = (type) => {
+    const dangerAnimals = ['tiger', 'lion', 'leopard', 'human'];
+    const warningAnimals = ['elephant', 'bear', 'boar'];
+    if (dangerAnimals.includes(type)) return 'danger';
+    if (warningAnimals.includes(type)) return 'warning';
+    return 'safe';
+  };
+
+  // Handle location visibility
+  const location = detection.device_location?.lat && !detection.device_location?.hidden
+    ? { lat: detection.device_location.lat, lng: detection.device_location.lon }
+    : null;
+
+  return {
+    id: `DET-${detection.id}`,
+    cameraId: detection.device_id,
+    cameraName: detection.device_id,
+    animalType: animalType,
+    animalName: detection.animal_type,
+    confidence: detection.confidence,
+    timestamp: detection.timestamp,
+    riskLevel: getRiskLevel(animalType),
+    location: location,
+    locationHidden: detection.device_location?.hidden || false,
+    imageUrl: detection.image_url, // Now returns appropriate image based on user role
+  };
+};
+
 export function AppProvider({ children }) {
-  const [cameras, setCameras] = useState(mockCameras);
-  const [detections, setDetections] = useState(mockDetections);
+  const { isAuthenticated, isRanger } = useAuth();
+  const [cameras, setCameras] = useState([]);
+  const [detections, setDetections] = useState([]);
+  const [accessLevel, setAccessLevel] = useState(null); // 'ranger', 'device_owner', 'public'
+  const [ownedDevicesCount, setOwnedDevicesCount] = useState(0);
   const [selectedCamera, setSelectedCamera] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isLoadingData, setIsLoadingData] = useState(false);
+  const [error, setError] = useState(null);
   const [filters, setFilters] = useState({
     dateRange: 'today',
     animalType: 'all',
@@ -15,32 +83,81 @@ export function AppProvider({ children }) {
     riskLevel: 'all',
   });
 
-  // Simulate real-time detection updates
+  // Fetch devices from API
+  const fetchDevices = useCallback(async () => {
+    if (!isAuthenticated) return;
+    
+    try {
+      const response = await devicesAPI.getAll();
+      if (response.devices) {
+        const transformedDevices = response.devices.map(transformDevice);
+        setCameras(transformedDevices);
+      }
+    } catch (err) {
+      console.error('Error fetching devices:', err);
+      setError('Failed to fetch devices');
+    }
+  }, [isAuthenticated]);
+
+  // Fetch detections from API
+  const fetchDetections = useCallback(async () => {
+    if (!isAuthenticated) return;
+    
+    try {
+      const response = await detectionsAPI.getAll();
+      if (response.images) {
+        const transformedDetections = response.images.map(transformDetection);
+        setDetections(transformedDetections);
+        // Store access level info from response
+        setAccessLevel(response.access_level);
+        setOwnedDevicesCount(response.owned_devices_count || 0);
+      }
+    } catch (err) {
+      console.error('Error fetching detections:', err);
+      setError('Failed to fetch detections');
+    }
+  }, [isAuthenticated]);
+
+  // Initial data fetch
   useEffect(() => {
+    if (isAuthenticated) {
+      setIsLoadingData(true);
+      Promise.all([fetchDevices(), fetchDetections()])
+        .finally(() => setIsLoadingData(false));
+    }
+  }, [isAuthenticated, fetchDevices, fetchDetections]);
+
+  // Refresh data periodically (every 30 seconds)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
     const interval = setInterval(() => {
-      // Simulate random camera status updates
-      setCameras((prev) =>
-        prev.map((cam) => ({
-          ...cam,
-          battery: Math.max(0, cam.battery - Math.random() * 0.1),
-          lastSeen: new Date().toISOString(),
-        }))
-      );
+      fetchDevices();
+      fetchDetections();
     }, 30000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [isAuthenticated, fetchDevices, fetchDetections]);
 
   const refreshData = async () => {
-    // Simulate API refresh
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    setCameras([...mockCameras]);
-    setDetections([...mockDetections]);
+    setIsLoadingData(true);
+    setError(null);
+    
+    try {
+      await Promise.all([fetchDevices(), fetchDetections()]);
+    } catch (err) {
+      setError('Failed to refresh data');
+      console.error('Refresh error:', err);
+    } finally {
+      setIsLoadingData(false);
+    }
   };
 
   const value = {
     cameras,
     detections,
+    accessLevel,
+    ownedDevicesCount,
     selectedCamera,
     setSelectedCamera,
     sidebarOpen,
@@ -48,6 +165,8 @@ export function AppProvider({ children }) {
     filters,
     setFilters,
     refreshData,
+    isLoadingData,
+    error,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

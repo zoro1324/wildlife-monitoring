@@ -10,16 +10,19 @@ class UserProfileSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = UserProfile
-        fields = ['mobile_number']
+        fields = ['mobile_number', 'home_lat', 'home_lon', 'user_type']
 
 
 class UserSerializer(serializers.ModelSerializer):
     """Serializer for User model with profile."""
     mobile_number = serializers.CharField(source='profile.mobile_number', read_only=True)
+    home_lat = serializers.FloatField(source='profile.home_lat', read_only=True)
+    home_lon = serializers.FloatField(source='profile.home_lon', read_only=True)
+    user_type = serializers.CharField(source='profile.user_type', read_only=True)
     
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'mobile_number', 'is_staff', 'date_joined']
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'mobile_number', 'home_lat', 'home_lon', 'user_type', 'is_staff', 'date_joined']
         read_only_fields = ['id', 'is_staff', 'date_joined']
 
 
@@ -31,6 +34,9 @@ class SignupSerializer(serializers.Serializer):
     mobile_number = serializers.CharField(max_length=15, required=False, allow_blank=True)
     first_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
     last_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    home_lat = serializers.FloatField(required=False, allow_null=True)
+    home_lon = serializers.FloatField(required=False, allow_null=True)
+    user_type = serializers.ChoiceField(choices=['public', 'ranger'], default='public')
     
     def validate_username(self, value):
         if not re.match(r"^[a-zA-Z0-9_]+$", value):
@@ -58,6 +64,9 @@ class SignupSerializer(serializers.Serializer):
     
     def create(self, validated_data):
         mobile_number = validated_data.pop('mobile_number', '')
+        home_lat = validated_data.pop('home_lat', None)
+        home_lon = validated_data.pop('home_lon', None)
+        user_type = validated_data.pop('user_type', 'public')
         user = User.objects.create_user(
             username=validated_data['username'],
             email=validated_data['email'],
@@ -67,7 +76,12 @@ class SignupSerializer(serializers.Serializer):
         )
         if mobile_number:
             user.profile.mobile_number = mobile_number
-            user.profile.save()
+        if home_lat is not None:
+            user.profile.home_lat = home_lat
+        if home_lon is not None:
+            user.profile.home_lon = home_lon
+        user.profile.user_type = user_type
+        user.profile.save()
         return user
 
 
@@ -128,13 +142,38 @@ class LogoutSerializer(serializers.Serializer):
 
 
 class DeviceSerializer(serializers.ModelSerializer):
-    """Serializer for Device model."""
+    """Serializer for Device model with access-based location visibility."""
     owned_by_username = serializers.CharField(source='owned_by.username', read_only=True)
+    location = serializers.SerializerMethodField()
     
     class Meta:
         model = Device
-        fields = ['id', 'device_id', 'lat', 'lon', 'owned_by', 'owned_by_username', 'created_at', 'updated_at']
+        fields = ['id', 'device_id', 'location', 'owned_by', 'owned_by_username', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def get_location(self, obj):
+        """Return device location only for rangers and device owners."""
+        request = self.context.get('request')
+        user = request.user if request else None
+        
+        # Check if user is ranger or device owner
+        is_ranger = user and hasattr(user, 'profile') and user.profile.user_type == 'ranger'
+        is_owner = user and obj.owned_by == user
+        
+        if is_ranger or is_owner:
+            return {
+                'lat': obj.lat,
+                'lon': obj.lon,
+                'visible': True
+            }
+        
+        # Return hidden location for public users
+        return {
+            'lat': None,
+            'lon': None,
+            'visible': False,
+            'message': 'Location hidden for privacy'
+        }
 
 
 class DeviceRegisterSerializer(serializers.Serializer):
@@ -215,17 +254,68 @@ class DeviceMessageCreateSerializer(serializers.Serializer):
 
 
 class CapturedImageSerializer(serializers.ModelSerializer):
-    """Serializer for CapturedImage model."""
+    """Serializer for CapturedImage model - returns data based on user access level."""
     device_id = serializers.CharField(source='device.device_id', read_only=True)
     confidence_percentage = serializers.SerializerMethodField()
+    image_url = serializers.SerializerMethodField()
+    device_location = serializers.SerializerMethodField()
     
     class Meta:
         model = CapturedImage
-        fields = ['id', 'device', 'device_id', 'image', 'animal_type', 'confidence', 'confidence_percentage', 'timestamp']
+        fields = ['id', 'device', 'device_id', 'image_url', 'animal_type', 'confidence', 'confidence_percentage', 'timestamp', 'device_location']
         read_only_fields = ['id', 'timestamp']
     
     def get_confidence_percentage(self, obj):
         return f"{obj.confidence * 100:.2f}%"
+    
+    def get_image_url(self, obj):
+        """Return appropriate image based on user access level.
+        - Rangers and device owners: Original image
+        - Normal public users: Annotated/boxed image only
+        """
+        request = self.context.get('request')
+        user = request.user if request else None
+        
+        # Check if user is ranger or device owner
+        is_ranger = user and hasattr(user, 'profile') and user.profile.user_type == 'ranger'
+        is_owner = user and obj.device.owned_by == user
+        
+        if is_ranger or is_owner:
+            # Return original image for rangers and owners
+            if obj.image:
+                return request.build_absolute_uri(obj.image.url) if request else obj.image.url
+        else:
+            # Return annotated image for public users
+            if obj.annotated_image:
+                return request.build_absolute_uri(obj.annotated_image.url) if request else obj.annotated_image.url
+            elif obj.image:
+                # Fallback to original if no annotated image
+                return request.build_absolute_uri(obj.image.url) if request else obj.image.url
+        
+        return None
+    
+    def get_device_location(self, obj):
+        """Return device location only for rangers and device owners."""
+        request = self.context.get('request')
+        user = request.user if request else None
+        
+        # Check if user is ranger or device owner
+        is_ranger = user and hasattr(user, 'profile') and user.profile.user_type == 'ranger'
+        is_owner = user and obj.device.owned_by == user
+        
+        if is_ranger or is_owner:
+            return {
+                'lat': obj.device.lat,
+                'lon': obj.device.lon
+            }
+        
+        # Return approximate/hidden location for public users
+        return {
+            'lat': None,
+            'lon': None,
+            'hidden': True,
+            'area': 'Location hidden for privacy'
+        }
 
 
 class CapturedImageUploadSerializer(serializers.Serializer):

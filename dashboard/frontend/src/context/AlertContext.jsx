@@ -1,11 +1,43 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { mockAlerts } from '../data/mockData';
+import { useApp } from './AppContext';
 
 const AlertContext = createContext(null);
 
+// Generate alerts from detections
+const generateAlertsFromDetections = (detections) => {
+  return detections
+    .filter(d => d.riskLevel === 'danger' || d.riskLevel === 'warning')
+    .map((detection, index) => ({
+      id: `ALERT-${detection.id}`,
+      type: detection.riskLevel === 'danger' ? 'intrusion' : 'wildlife',
+      severity: detection.riskLevel,
+      title: detection.riskLevel === 'danger' 
+        ? `${detection.animalName} Detected - High Risk!`
+        : `${detection.animalName} Spotted`,
+      message: `${detection.animalName} detected by ${detection.cameraId} with ${Math.round(detection.confidence * 100)}% confidence.`,
+      cameraId: detection.cameraId,
+      cameraName: detection.cameraName,
+      timestamp: detection.timestamp,
+      isRead: false,
+      isResolved: false,
+      location: detection.location,
+    }));
+};
+
 export function AlertProvider({ children }) {
-  const [alerts, setAlerts] = useState(mockAlerts);
+  const { detections } = useApp();
+  const [alerts, setAlerts] = useState([]);
   const [notifications, setNotifications] = useState([]);
+
+  // Update alerts when detections change
+  useEffect(() => {
+    if (detections && detections.length > 0) {
+      const generatedAlerts = generateAlertsFromDetections(detections);
+      setAlerts(generatedAlerts);
+    } else {
+      setAlerts([]);
+    }
+  }, [detections]);
 
   const unreadCount = alerts.filter((a) => !a.isRead).length;
   const unresolvedCount = alerts.filter((a) => !a.isResolved).length;

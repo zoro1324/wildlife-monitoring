@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Video, Map, Bell, Settings } from 'lucide-react';
+import { LayoutDashboard, Video, Map, Bell, Upload } from 'lucide-react';
 import { useAlerts } from '../../context/AlertContext';
 import { cn } from '../../utils/helpers';
 
@@ -9,7 +9,7 @@ const navItems = [
   { path: '/ranger/live-monitoring', icon: Video, label: 'Live' },
   { path: '/ranger/map-tracking', icon: Map, label: 'Map' },
   { path: '/ranger/alerts', icon: Bell, label: 'Alerts', badge: true },
-  { path: '/ranger/settings', icon: Settings, label: 'Settings' },
+  { path: '/ranger/device-simulator', icon: Upload, label: 'Simulate' },
 ];
 
 function MobileNav() {

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, Circle } from 'react-leaflet';
 import L from 'leaflet';
@@ -16,7 +16,25 @@ import {
 import { useApp } from '../context/AppContext';
 import { Card, Badge, Button } from '../components/ui';
 import { formatSmartDate, getAnimalIcon, getRiskConfig, cn } from '../utils/helpers';
-import { animalTypes, mapZones } from '../data/mockData';
+
+// Animal types configuration
+const animalTypes = [
+  { id: 'elephant', name: 'Elephant', icon: '🐘' },
+  { id: 'tiger', name: 'Tiger', icon: '🐅' },
+  { id: 'lion', name: 'Lion', icon: '🦁' },
+  { id: 'leopard', name: 'Leopard', icon: '🐆' },
+  { id: 'bear', name: 'Bear', icon: '🐻' },
+  { id: 'bison', name: 'Bison', icon: '🦬' },
+  { id: 'boar', name: 'Wild Boar', icon: '🐗' },
+  { id: 'human', name: 'Human', icon: '🧑' },
+];
+
+// Default map zones (can be customized based on actual park areas)
+const defaultMapZones = [
+  { id: 'zone1', name: 'Core Forest Zone', color: '#22C55E', bounds: [[29.53, 79.04], [29.55, 79.08]] },
+  { id: 'zone2', name: 'Buffer Zone North', color: '#F59E0B', bounds: [[29.56, 79.05], [29.58, 79.09]] },
+  { id: 'zone3', name: 'Buffer Zone South', color: '#F59E0B', bounds: [[29.50, 79.03], [29.52, 79.07]] },
+];
 
 // Fix Leaflet default marker icon issue
 delete L.Icon.Default.prototype._getIconUrl;
@@ -54,7 +72,7 @@ const createAnimalIcon = (animalType, riskLevel) => {
 };
 
 function PublicDashboard() {
-  const { detections } = useApp();
+  const { detections, cameras } = useApp();
   const [selectedAnimal, setSelectedAnimal] = useState(null);
 
   // Filter detections for public view (exclude human detections for privacy)
@@ -73,9 +91,28 @@ function PublicDashboard() {
   // Animal filter options (exclude human for public)
   const publicAnimalTypes = animalTypes.filter(a => a.id !== 'human');
 
-  // Map configuration
-  const mapCenter = [29.52, 79.06];
+  // Map configuration - use first camera location or default
+  const mapCenter = useMemo(() => {
+    if (cameras.length > 0 && cameras[0].location) {
+      return [cameras[0].location.lat, cameras[0].location.lng];
+    }
+    return [29.52, 79.06]; // Default to Jim Corbett National Park
+  }, [cameras]);
   const mapZoom = 12;
+
+  // Map zones based on camera locations
+  const mapZones = useMemo(() => {
+    if (cameras.length === 0) return defaultMapZones;
+    return cameras.map((camera, index) => ({
+      id: camera.id,
+      name: camera.name || `Zone ${index + 1}`,
+      color: camera.status === 'online' ? '#22C55E' : '#F59E0B',
+      bounds: camera.location ? [
+        [camera.location.lat - 0.01, camera.location.lng - 0.02],
+        [camera.location.lat + 0.01, camera.location.lng + 0.02]
+      ] : defaultMapZones[0].bounds,
+    }));
+  }, [cameras]);
 
   return (
     <div className="min-h-screen bg-gray-50">

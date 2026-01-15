@@ -8,11 +8,19 @@ class UserProfile(models.Model):
     """
     User profile model to extend the default User model with additional fields.
     """
+    USER_TYPE_CHOICES = [
+        ('public', 'Public'),
+        ('ranger', 'Ranger'),
+    ]
+    
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
     mobile_number = models.CharField(max_length=15, unique=True, null=True, blank=True)
+    home_lat = models.FloatField(null=True, blank=True, help_text="Home Latitude")
+    home_lon = models.FloatField(null=True, blank=True, help_text="Home Longitude")
+    user_type = models.CharField(max_length=10, choices=USER_TYPE_CHOICES, default='public')
     
     def __str__(self):
-        return f"{self.user.username}'s profile"
+        return f"{self.user.username}'s profile ({self.user_type})"
     
     class Meta:
         verbose_name = "User Profile"
@@ -83,7 +91,8 @@ class CapturedImage(models.Model):
     ]
     
     device = models.ForeignKey(Device, on_delete=models.CASCADE, related_name="captured_images")
-    image = models.ImageField(upload_to="captured_images/%Y/%m/%d/")
+    image = models.ImageField(upload_to="captured_images/%Y/%m/%d/", help_text="Original captured image")
+    annotated_image = models.ImageField(upload_to="annotated_images/%Y/%m/%d/", null=True, blank=True, help_text="YOLO annotated image with bounding boxes")
     animal_type = models.CharField(max_length=20, choices=ANIMAL_CHOICES)
     confidence = models.FloatField(help_text="Confidence score from YOLO model (0-1)")
     timestamp = models.DateTimeField(auto_now_add=True)

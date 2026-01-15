@@ -13,6 +13,7 @@ import {
   LogOut,
   Shield,
   Users,
+  Upload,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useApp } from '../../context/AppContext';
@@ -28,6 +29,7 @@ const navItems = [
   { path: '/ranger/alerts', icon: Bell, label: 'Alerts', badge: true },
   { path: '/ranger/camera-health', icon: Camera, label: 'Camera Health' },
   { path: '/ranger/analytics', icon: BarChart3, label: 'Analytics' },
+  { path: '/ranger/device-simulator', icon: Upload, label: 'Device Simulator' },
   { path: '/ranger/settings', icon: Settings, label: 'Settings' },
 ];
 
