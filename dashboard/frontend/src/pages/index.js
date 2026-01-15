@@ -10,3 +10,4 @@ export { default as CameraHealth } from './CameraHealth';
 export { default as Analytics } from './Analytics';
 export { default as Settings } from './Settings';
 export { default as DeviceSimulator } from './DeviceSimulator';
+export { default as MyDevices } from './MyDevices';

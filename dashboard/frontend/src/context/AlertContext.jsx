@@ -1,41 +1,64 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useApp } from './AppContext';
 
 const AlertContext = createContext(null);
 
 // Generate alerts from detections
-const generateAlertsFromDetections = (detections) => {
+const generateAlertsFromDetections = (detections, existingAlerts = []) => {
+  // Create a map of existing alerts to preserve their state
+  const existingAlertsMap = new Map();
+  existingAlerts.forEach(alert => {
+    existingAlertsMap.set(alert.id, alert);
+  });
+
   return detections
     .filter(d => d.riskLevel === 'danger' || d.riskLevel === 'warning')
-    .map((detection, index) => ({
-      id: `ALERT-${detection.id}`,
-      type: detection.riskLevel === 'danger' ? 'intrusion' : 'wildlife',
-      severity: detection.riskLevel,
-      title: detection.riskLevel === 'danger' 
-        ? `${detection.animalName} Detected - High Risk!`
-        : `${detection.animalName} Spotted`,
-      message: `${detection.animalName} detected by ${detection.cameraId} with ${Math.round(detection.confidence * 100)}% confidence.`,
-      cameraId: detection.cameraId,
-      cameraName: detection.cameraName,
-      timestamp: detection.timestamp,
-      isRead: false,
-      isResolved: false,
-      location: detection.location,
-    }));
+    .map((detection) => {
+      const alertId = `ALERT-${detection.id}`;
+      const existingAlert = existingAlertsMap.get(alertId);
+      
+      return {
+        id: alertId,
+        type: detection.riskLevel === 'danger' ? 'intrusion' : 'wildlife',
+        severity: detection.riskLevel,
+        title: detection.riskLevel === 'danger' 
+          ? `${detection.animalName} Detected - High Risk!`
+          : `${detection.animalName} Spotted`,
+        message: `${detection.animalName} detected by ${detection.cameraId} with ${Math.round(detection.confidence * 100)}% confidence.`,
+        cameraId: detection.cameraId,
+        cameraName: detection.cameraName,
+        timestamp: detection.timestamp,
+        // Preserve existing state or set defaults
+        isRead: existingAlert?.isRead ?? false,
+        isResolved: existingAlert?.isResolved ?? false,
+        resolvedBy: existingAlert?.resolvedBy ?? null,
+        resolvedAt: existingAlert?.resolvedAt ?? null,
+        location: detection.location,
+        locationHidden: detection.locationHidden,
+        // Include image URL for the popup
+        imageUrl: detection.imageUrl,
+        animalType: detection.animalType,
+        animalName: detection.animalName,
+        confidence: detection.confidence,
+      };
+    });
 };
 
 export function AlertProvider({ children }) {
   const { detections } = useApp();
   const [alerts, setAlerts] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  const alertsRef = useRef([]);
 
-  // Update alerts when detections change
+  // Update alerts when detections change, preserving state
   useEffect(() => {
     if (detections && detections.length > 0) {
-      const generatedAlerts = generateAlertsFromDetections(detections);
+      const generatedAlerts = generateAlertsFromDetections(detections, alertsRef.current);
       setAlerts(generatedAlerts);
+      alertsRef.current = generatedAlerts;
     } else {
       setAlerts([]);
+      alertsRef.current = [];
     }
   }, [detections]);
 
@@ -43,25 +66,33 @@ export function AlertProvider({ children }) {
   const unresolvedCount = alerts.filter((a) => !a.isResolved).length;
 
   const markAsRead = useCallback((alertId) => {
-    setAlerts((prev) =>
-      prev.map((alert) =>
+    setAlerts((prev) => {
+      const updated = prev.map((alert) =>
         alert.id === alertId ? { ...alert, isRead: true } : alert
-      )
-    );
+      );
+      alertsRef.current = updated;
+      return updated;
+    });
   }, []);
 
   const markAllAsRead = useCallback(() => {
-    setAlerts((prev) => prev.map((alert) => ({ ...alert, isRead: true })));
+    setAlerts((prev) => {
+      const updated = prev.map((alert) => ({ ...alert, isRead: true }));
+      alertsRef.current = updated;
+      return updated;
+    });
   }, []);
 
   const resolveAlert = useCallback((alertId, resolvedBy = 'Current User') => {
-    setAlerts((prev) =>
-      prev.map((alert) =>
+    setAlerts((prev) => {
+      const updated = prev.map((alert) =>
         alert.id === alertId
           ? { ...alert, isResolved: true, resolvedBy, resolvedAt: new Date().toISOString() }
           : alert
-      )
-    );
+      );
+      alertsRef.current = updated;
+      return updated;
+    });
   }, []);
 
   const addNotification = useCallback((notification) => {

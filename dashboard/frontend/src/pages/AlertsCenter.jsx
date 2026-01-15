@@ -1,15 +1,16 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, CheckCircle, AlertTriangle, AlertCircle, Camera, Clock, MapPin, Check, ChevronRight } from 'lucide-react';
+import { Bell, CheckCircle, AlertTriangle, AlertCircle, Camera, Clock, MapPin, Check, ChevronRight, X } from 'lucide-react';
 import { useAlerts } from '../context/AlertContext';
-import { Card, Badge, Button, Select, EmptyState } from '../components/ui';
-import { getRelativeTime, cn } from '../utils/helpers';
+import { Card, Badge, Button, Select, EmptyState, Modal } from '../components/ui';
+import { getRelativeTime, cn, getAnimalIcon, formatSmartDate, formatConfidence } from '../utils/helpers';
 
 function AlertsCenter() {
   const navigate = useNavigate();
   const { alerts, markAsRead, resolveAlert, markAllAsRead, unreadCount } = useAlerts();
   const [filter, setFilter] = useState('all');
   const [severityFilter, setSeverityFilter] = useState('all');
+  const [selectedAlert, setSelectedAlert] = useState(null);
 
   const filterOptions = [
     { value: 'all', label: 'All Alerts' },
@@ -54,13 +55,21 @@ function AlertsCenter() {
 
   const handleAlertClick = (alert) => {
     if (!alert.isRead) markAsRead(alert.id);
-    if (alert.location) navigate('/map-tracking');
-    else if (alert.cameraId) navigate('/camera-health');
+    setSelectedAlert(alert);
   };
 
   const handleResolve = (e, alertId) => {
     e.stopPropagation();
     resolveAlert(alertId);
+  };
+
+  const handleCloseModal = () => {
+    setSelectedAlert(null);
+  };
+
+  const handleViewOnMap = () => {
+    setSelectedAlert(null);
+    navigate('/ranger/map-tracking');
   };
 
   return (
@@ -152,6 +161,107 @@ function AlertsCenter() {
       ) : (
         <EmptyState icon={Bell} title="No alerts found" description="There are no alerts matching your current filters." action={<Button variant="primary" onClick={() => { setFilter('all'); setSeverityFilter('all'); }}>View All Alerts</Button>} />
       )}
+
+      {/* Alert Detail Modal */}
+      <Modal isOpen={!!selectedAlert} onClose={handleCloseModal} title="Alert Details" size="lg">
+        {selectedAlert && (
+          <div className="space-y-4">
+            {/* Animal Image */}
+            <div className="relative h-64 bg-gray-100 rounded-lg overflow-hidden">
+              {selectedAlert.imageUrl ? (
+                <img 
+                  src={selectedAlert.imageUrl} 
+                  alt={selectedAlert.animalName}
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <span className="text-8xl">{getAnimalIcon(selectedAlert.animalType)}</span>
+                </div>
+              )}
+              <div className="absolute top-2 right-2">
+                <Badge 
+                  variant={selectedAlert.isResolved ? 'neutral' : selectedAlert.severity === 'danger' ? 'danger' : 'warning'}
+                  size="sm"
+                >
+                  {selectedAlert.isResolved ? 'Resolved' : selectedAlert.severity === 'danger' ? 'Critical' : 'Warning'}
+                </Badge>
+              </div>
+            </div>
+
+            {/* Alert Info */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-gray-500">Animal</p>
+                <p className="font-medium flex items-center gap-2">
+                  <span className="text-xl">{getAnimalIcon(selectedAlert.animalType)}</span>
+                  {selectedAlert.animalName}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Confidence</p>
+                <p className="font-medium">{formatConfidence(selectedAlert.confidence)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Camera</p>
+                <p className="font-medium flex items-center gap-1">
+                  <Camera className="w-4 h-4 text-gray-400" />
+                  {selectedAlert.cameraId}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Time</p>
+                <p className="font-medium flex items-center gap-1">
+                  <Clock className="w-4 h-4 text-gray-400" />
+                  {formatSmartDate(selectedAlert.timestamp)}
+                </p>
+              </div>
+              {selectedAlert.location && !selectedAlert.locationHidden && (
+                <div className="col-span-2">
+                  <p className="text-sm text-gray-500">Location</p>
+                  <p className="font-medium flex items-center gap-1">
+                    <MapPin className="w-4 h-4 text-gray-400" />
+                    {selectedAlert.location.lat?.toFixed(6)}, {selectedAlert.location.lng?.toFixed(6)}
+                  </p>
+                </div>
+              )}
+              {selectedAlert.isResolved && (
+                <div className="col-span-2 p-3 bg-green-50 rounded-lg border border-green-200">
+                  <p className="text-sm text-green-700">
+                    <CheckCircle className="w-4 h-4 inline mr-1" />
+                    Resolved by {selectedAlert.resolvedBy} on {formatSmartDate(selectedAlert.resolvedAt)}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-end gap-2 pt-4 border-t">
+              {selectedAlert.location && !selectedAlert.locationHidden && (
+                <Button 
+                  variant="outline" 
+                  leftIcon={<MapPin className="w-4 h-4" />}
+                  onClick={handleViewOnMap}
+                >
+                  View on Map
+                </Button>
+              )}
+              {!selectedAlert.isResolved && (
+                <Button 
+                  variant="primary" 
+                  leftIcon={<Check className="w-4 h-4" />}
+                  onClick={(e) => {
+                    handleResolve(e, selectedAlert.id);
+                    setSelectedAlert({ ...selectedAlert, isResolved: true, resolvedBy: 'Current User', resolvedAt: new Date().toISOString() });
+                  }}
+                >
+                  Mark as Resolved
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
