@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { authAPI } from '../services/api';
 
 const AuthContext = createContext(null);
@@ -9,9 +9,60 @@ export const USER_TYPES = {
   PUBLIC: 'public',
 };
 
+// Request user location
+const requestUserLocation = () => {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      console.log('Geolocation not supported');
+      resolve(null);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        resolve({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        });
+      },
+      (error) => {
+        console.log('Location permission denied or error:', error.message);
+        resolve(null);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 300000, // 5 minutes
+      }
+    );
+  });
+};
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [userLocation, setUserLocation] = useState(null);
+  const [locationLoading, setLocationLoading] = useState(false);
+
+  // Request location on mount
+  const fetchUserLocation = useCallback(async () => {
+    setLocationLoading(true);
+    const location = await requestUserLocation();
+    if (location) {
+      setUserLocation(location);
+      localStorage.setItem('wildlife_user_location', JSON.stringify(location));
+    }
+    setLocationLoading(false);
+    return location;
+  }, []);
+
+  useEffect(() => {
+    // Check for stored location on mount
+    const storedLocation = localStorage.getItem('wildlife_user_location');
+    if (storedLocation) {
+      setUserLocation(JSON.parse(storedLocation));
+    }
+  }, []);
 
   useEffect(() => {
     // Check for stored auth on mount
@@ -83,6 +134,10 @@ export function AuthProvider({ children }) {
       setUser(userData);
       localStorage.setItem('wildlife_user', JSON.stringify(userData));
       setIsLoading(false);
+      
+      // Request location permission after successful login
+      fetchUserLocation();
+      
       return { success: true, userType: userType };
     } catch (error) {
       setIsLoading(false);
@@ -115,6 +170,10 @@ export function AuthProvider({ children }) {
       setUser(newUser);
       localStorage.setItem('wildlife_user', JSON.stringify(newUser));
       setIsLoading(false);
+      
+      // Request location permission after successful signup
+      fetchUserLocation();
+      
       return { success: true, userType: userType };
     } catch (error) {
       setIsLoading(false);
@@ -130,6 +189,8 @@ export function AuthProvider({ children }) {
     }
     setUser(null);
     localStorage.removeItem('wildlife_user');
+    localStorage.removeItem('wildlife_user_location');
+    setUserLocation(null);
   };
 
   const updateProfile = (updates) => {
@@ -143,6 +204,8 @@ export function AuthProvider({ children }) {
 
   const value = {
     user,
+    userLocation,
+    locationLoading,
     isAuthenticated: !!user,
     isLoading,
     isRanger,
@@ -151,6 +214,7 @@ export function AuthProvider({ children }) {
     signup,
     logout,
     updateProfile,
+    fetchUserLocation,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

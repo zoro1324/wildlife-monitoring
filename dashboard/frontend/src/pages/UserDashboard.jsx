@@ -1,26 +1,17 @@
-import { useState, useMemo, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, Circle } from 'react-leaflet';
 import L from 'leaflet';
-import { 
-  Eye, 
-  MapPin, 
-  Bell,
-  AlertTriangle,
-  Clock,
-  LogOut,
-  User,
-  Settings,
-  ChevronRight,
-  Trees,
-  Shield,
-  Camera,
-  Lock
-} from 'lucide-react';
+import { AlertTriangle, Activity, Eye, Clock, MapPin, Navigation, Trees, Bell, Shield, Lock, Camera } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
-import { Card, Badge, Button } from '../components/ui';
-import { formatSmartDate, getAnimalIcon, getRiskConfig, cn } from '../utils/helpers';
+import { useAlerts } from '../context/AlertContext';
+import { Card, Badge, Button, StatCard, EmptyState } from '../components/ui';
+import { formatSmartDate, getAnimalIcon, getRiskConfig } from '../utils/helpers';
+
+// Default map zones when no data
+const defaultMapZones = [
+  { id: 'default', name: 'Monitoring Area', bounds: [[12.9, 77.5], [13.0, 77.7]], color: '#166534' }
+];
 
 // Fix Leaflet default marker icon issue
 delete L.Icon.Default.prototype._getIconUrl;
@@ -38,451 +29,378 @@ const createAnimalIcon = (animalType, riskLevel) => {
     className: 'custom-animal-marker',
     html: `
       <div style="
-        width: 40px; 
-        height: 40px; 
+        width: 36px; 
+        height: 36px; 
         border-radius: 50%; 
         background: ${bgColor}; 
         display: flex; 
         align-items: center; 
         justify-content: center; 
-        font-size: 20px;
-        border: 3px solid white;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        font-size: 18px;
+        border: 2px solid white;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
       ">
         ${icon}
       </div>
     `,
-    iconSize: [40, 40],
-    iconAnchor: [20, 20],
+    iconSize: [36, 36],
+    iconAnchor: [18, 18],
   });
 };
 
 function UserDashboard() {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
-  const { detections, cameras, accessLevel, ownedDevicesCount, isLoadingData, refreshData } = useApp();
-  const [showUserMenu, setShowUserMenu] = useState(false);
-
-  // Filter detections for public view (exclude human detections for privacy)
-  const publicDetections = detections.filter(d => d.animalType !== 'human');
+  const { detections, cameras, isLoadingData, accessLevel, ownedDevicesCount } = useApp();
+  const { user, userLocation } = useAuth();
+  const { alerts, unresolvedCount } = useAlerts();
 
   // Check if user is a device owner
   const isDeviceOwner = accessLevel === 'device_owner' || ownedDevicesCount > 0;
 
-  // Stats
-  const totalSightings = publicDetections.length;
-  const uniqueSpecies = [...new Set(publicDetections.map(d => d.animalType))].length;
-  const dangerousAnimals = publicDetections.filter(d => d.riskLevel === 'danger').length;
-
-  // Get recent alerts for the user
-  const recentAlerts = publicDetections
-    .filter(d => d.riskLevel === 'danger' || d.riskLevel === 'warning')
-    .slice(0, 5);
-
-  // Filter detections that have visible location for mapping
+  // Filter detections for public view (exclude human detections for privacy)
+  const publicDetections = detections.filter(d => d.animalType !== 'human');
+  
+  // Filter detections with visible locations
   const detectionsWithLocation = publicDetections.filter(d => d.location && !d.locationHidden);
 
-  // Map configuration
-  const mapCenter = useMemo(() => {
-    if (user?.home_lat && user?.home_lon) {
-      return [user.home_lat, user.home_lon];
-    }
-    // Use first detection with location
-    if (detectionsWithLocation.length > 0 && detectionsWithLocation[0].location) {
-      return [detectionsWithLocation[0].location.lat, detectionsWithLocation[0].location.lng];
-    }
-    // Default center
-    return [29.52, 79.06];
-  }, [user, detectionsWithLocation]);
+  const todayDetections = publicDetections.length;
+  const uniqueSpecies = [...new Set(publicDetections.map(d => d.animalType))].length;
+  const dangerAlerts = alerts.filter((a) => a.severity === 'danger' && !a.isResolved).length;
+  const warningAlerts = alerts.filter((a) => a.severity === 'warning' && !a.isResolved).length;
 
-  const handleLogout = async () => {
-    await logout();
-    navigate('/');
-  };
+  const recentDetections = publicDetections.slice(0, 5);
+  const criticalAlertsList = alerts.filter((a) => a.severity === 'danger' && !a.isResolved).slice(0, 3);
+
+  // Map configuration - prefer user location, then detection, then default
+  const mapCenter = userLocation
+    ? [userLocation.lat, userLocation.lng]
+    : user?.home_lat && user?.home_lon
+      ? [user.home_lat, user.home_lon]
+      : detectionsWithLocation.length > 0
+        ? [detectionsWithLocation[0].location.lat, detectionsWithLocation[0].location.lng]
+        : [12.9716, 77.5946];
+  const mapZoom = 12;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-earth-700 text-white sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Trees className="w-8 h-8 text-earth-300" />
-              <div>
-                <h1 className="text-xl font-display font-bold">Wildlife Watch</h1>
-                <p className="text-earth-300 text-xs">Stay Safe, Stay Informed</p>
-              </div>
-            </div>
-            
-            {/* User Menu */}
-            <div className="relative">
-              <button
-                onClick={() => setShowUserMenu(!showUserMenu)}
-                className="flex items-center gap-2 px-3 py-2 bg-earth-600 hover:bg-earth-500 rounded-lg transition-colors"
-              >
-                <div className="w-8 h-8 bg-earth-400 rounded-full flex items-center justify-center">
-                  <User className="w-4 h-4" />
-                </div>
-                <span className="hidden sm:inline font-medium">{user?.name || 'User'}</span>
-              </button>
-              
-              {showUserMenu && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-100 py-2 z-50">
-                  <div className="px-4 py-2 border-b border-gray-100">
-                    <p className="font-medium text-gray-900">{user?.name}</p>
-                    <p className="text-sm text-gray-500">{user?.email}</p>
-                    <div className="flex gap-2 mt-1">
-                      <Badge variant="neutral" size="sm">
-                        {isDeviceOwner ? 'Device Owner' : 'Public User'}
-                      </Badge>
-                      {ownedDevicesCount > 0 && (
-                        <Badge variant="primary" size="sm">
-                          {ownedDevicesCount} device{ownedDevicesCount > 1 ? 's' : ''}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                  <button
-                    onClick={handleLogout}
-                    className="w-full px-4 py-2 text-left text-red-600 hover:bg-red-50 flex items-center gap-2"
-                  >
-                    <LogOut className="w-4 h-4" />
-                    Sign Out
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
+    <div className="space-y-6 pb-16 lg:pb-0">
+      {/* Page Header */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-display font-bold text-gray-900">
+            Wildlife Dashboard
+          </h1>
+          <p className="text-gray-600 mt-1">
+            Stay informed about wildlife activity in your area
+          </p>
         </div>
-      </header>
+        <div className="flex items-center gap-3">
+          {isDeviceOwner && (
+            <Badge variant="success" className="flex items-center gap-1">
+              <Shield className="w-3 h-3" />
+              Device Owner
+            </Badge>
+          )}
+          <Button
+            variant="outline"
+            leftIcon={<Bell className="w-4 h-4" />}
+            onClick={() => navigate('/public/alerts')}
+          >
+            {unresolvedCount > 0 ? `${unresolvedCount} Alerts` : 'Alerts'}
+          </Button>
+        </div>
+      </div>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">
-        {/* Welcome Banner */}
-        <Card className="bg-gradient-to-r from-earth-600 to-earth-700 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold">Welcome, {user?.name?.split(' ')[0] || 'User'}!</h2>
-              <p className="text-earth-200 mt-1">
-                {isDeviceOwner 
-                  ? `You have ${ownedDevicesCount} monitoring device${ownedDevicesCount > 1 ? 's' : ''}`
-                  : 'Stay updated on wildlife activity in your area'}
+      {/* Stats Grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          title="Wildlife Sightings"
+          value={todayDetections}
+          icon={Activity}
+        />
+        <StatCard
+          title="Species Detected"
+          value={uniqueSpecies}
+          icon={Trees}
+        />
+        <StatCard
+          title="Danger Alerts"
+          value={dangerAlerts}
+          icon={AlertTriangle}
+        />
+        <StatCard
+          title="Warning Alerts"
+          value={warningAlerts}
+          icon={AlertTriangle}
+        />
+      </div>
+
+      {/* Device Owner Info */}
+      {isDeviceOwner && (
+        <Card className="bg-blue-50 border-blue-200">
+          <div className="flex items-start space-x-3">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <Camera className="w-5 h-5 text-blue-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-blue-800">📷 Device Owner Access</h3>
+              <p className="text-sm text-blue-700 mt-1">
+                You have {ownedDevicesCount} monitoring device{ownedDevicesCount > 1 ? 's' : ''}. You can see images and exact locations from your devices.
               </p>
             </div>
-            <div className="hidden sm:block">
-              {isDeviceOwner 
-                ? <Camera className="w-20 h-20 text-earth-400 opacity-50" />
-                : <Trees className="w-20 h-20 text-earth-400 opacity-50" />
-              }
-            </div>
           </div>
         </Card>
+      )}
 
-        {/* Device Owner Info Card */}
-        {isDeviceOwner && (
-          <Card className="bg-blue-50 border-blue-200">
-            <div className="flex items-start space-x-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Camera className="w-5 h-5 text-blue-600" />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-blue-800">📷 Your Device Activity</h3>
-                <p className="text-sm text-blue-700 mt-1">
-                  You can see images and exact locations from your devices. 
-                  You'll receive phone calls when wildlife is detected on your cameras.
-                </p>
-              </div>
-            </div>
-          </Card>
-        )}
+      {/* Live Animal Map */}
+      <Card noPadding className="overflow-hidden">
+        <div className="p-4 bg-forest-50 border-b border-forest-100 flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <MapPin className="w-5 h-5 text-forest-600" />
+            <h2 className="text-lg font-semibold text-gray-900">Wildlife Locations Near You</h2>
+            {!isDeviceOwner && detectionsWithLocation.length === 0 && (
+              <Badge variant="neutral" size="sm" className="ml-2">
+                <Lock className="w-3 h-3 mr-1" />
+                Limited View
+              </Badge>
+            )}
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <Badge variant="danger" size="sm">🔴 Danger</Badge>
+            <Badge variant="warning" size="sm">🟡 Warning</Badge>
+            <Badge variant="success" size="sm">🟢 Safe</Badge>
+          </div>
+        </div>
+        <div className="h-[350px]">
+          <MapContainer
+            center={mapCenter}
+            zoom={mapZoom}
+            className="h-full w-full"
+            scrollWheelZoom={true}
+          >
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
 
-        {/* My Devices Section - for device owners */}
-        {isDeviceOwner && cameras.length > 0 && (
-          <Card>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <Camera className="w-5 h-5 text-earth-600" />
-                My Devices
-              </h3>
-              <Badge variant="primary">{cameras.length} device{cameras.length > 1 ? 's' : ''}</Badge>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {cameras.map((camera) => (
-                <div
-                  key={camera.id}
-                  className="p-4 bg-gray-50 rounded-lg border border-gray-200"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-medium text-gray-900">{camera.id}</h4>
-                    <Badge 
-                      variant={camera.status === 'online' ? 'success' : 'danger'} 
+            {/* Risk Zones */}
+            {defaultMapZones.map((zone) => (
+              <Circle
+                key={zone.id}
+                center={[(zone.bounds[0][0] + zone.bounds[1][0]) / 2, (zone.bounds[0][1] + zone.bounds[1][1]) / 2]}
+                radius={1500}
+                pathOptions={{
+                  color: zone.color,
+                  fillColor: zone.color,
+                  fillOpacity: 0.1,
+                  weight: 2,
+                }}
+              />
+            ))}
+
+            {/* User Location Marker */}
+            {userLocation && (
+              <Marker
+                position={[userLocation.lat, userLocation.lng]}
+                icon={L.divIcon({
+                  className: 'custom-user-marker',
+                  html: `
+                    <div style="
+                      width: 24px;
+                      height: 24px;
+                      border-radius: 50%;
+                      background: #3B82F6;
+                      border: 3px solid white;
+                      box-shadow: 0 2px 8px rgba(59, 130, 246, 0.5);
+                    "></div>
+                  `,
+                  iconSize: [24, 24],
+                  iconAnchor: [12, 12],
+                })}
+              >
+                <Popup>
+                  <div className="text-center p-1">
+                    <Navigation className="w-4 h-4 text-blue-500 mx-auto mb-1" />
+                    <p className="font-semibold text-sm">Your Location</p>
+                  </div>
+                </Popup>
+              </Marker>
+            )}
+
+            {/* Animal Detection Markers - only show detections with visible locations */}
+            {detectionsWithLocation.map((detection) => (
+              <Marker
+                key={detection.id}
+                position={[detection.location.lat, detection.location.lng]}
+                icon={createAnimalIcon(detection.animalType, detection.riskLevel)}
+              >
+                <Popup>
+                  <div className="p-1 min-w-[180px]">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xl">{getAnimalIcon(detection.animalType)}</span>
+                      <div>
+                        <h3 className="font-semibold text-gray-900">{detection.animalName}</h3>
+                        <p className="text-xs text-gray-500">{formatSmartDate(detection.timestamp)}</p>
+                      </div>
+                    </div>
+                    <Badge
+                      variant={detection.riskLevel === 'danger' ? 'danger' : 
+                              detection.riskLevel === 'warning' ? 'warning' : 'success'}
                       size="sm"
                     >
-                      {camera.status}
+                      {getRiskConfig(detection.riskLevel).label}
                     </Badge>
                   </div>
-                  <p className="text-sm text-gray-500 mb-2">{camera.name}</p>
-                  {camera.location && !camera.locationHidden && (
-                    <p className="text-xs text-gray-400">
-                      📍 {camera.location.lat?.toFixed(4)}, {camera.location.lng?.toFixed(4)}
-                    </p>
-                  )}
-                  <div className="mt-3 pt-3 border-t border-gray-200 flex items-center justify-between text-sm">
-                    <span className="text-gray-500">
-                      {detections.filter(d => d.cameraId === camera.id).length} detections
-                    </span>
-                    <span className="text-gray-400 text-xs">
-                      Last seen: {formatSmartDate(camera.lastSeen)}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        )}
-
-        {/* Safety Alerts */}
-        {recentAlerts.length > 0 && (
-          <Card className="bg-amber-50 border-amber-200">
-            <div className="flex items-start space-x-3">
-              <div className="p-2 bg-amber-100 rounded-lg">
-                <AlertTriangle className="w-5 h-5 text-amber-600" />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-amber-800">⚠️ Wildlife Safety Advisory</h3>
-                <p className="text-sm text-amber-700 mt-1">
-                  These animals have been spotted recently. Please maintain safe distance.
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {recentAlerts.slice(0, 3).map((alert) => (
-                    <div
-                      key={alert.id}
-                      className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border border-amber-200"
-                    >
-                      <span className="text-lg">{getAnimalIcon(alert.animalType)}</span>
-                      <span className="text-sm font-medium text-amber-800">{alert.animalName}</span>
-                      <Badge 
-                        variant={alert.riskLevel === 'danger' ? 'danger' : 'warning'} 
-                        size="sm"
-                      >
-                        {alert.riskLevel}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </Card>
-        )}
-
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-4">
-          <Card className="text-center">
-            <Eye className="w-8 h-8 text-earth-600 mx-auto mb-2" />
-            <p className="text-2xl font-bold text-gray-900">{totalSightings}</p>
-            <p className="text-sm text-gray-500">Sightings</p>
-          </Card>
-          <Card className="text-center">
-            <span className="text-3xl block mb-2">🦁</span>
-            <p className="text-2xl font-bold text-gray-900">{uniqueSpecies}</p>
-            <p className="text-sm text-gray-500">Species</p>
-          </Card>
-          <Card className="text-center">
-            <AlertTriangle className="w-8 h-8 text-danger-600 mx-auto mb-2" />
-            <p className="text-2xl font-bold text-gray-900">{dangerousAnimals}</p>
-            <p className="text-sm text-gray-500">Alerts</p>
-          </Card>
+                </Popup>
+              </Marker>
+            ))}
+          </MapContainer>
         </div>
+      </Card>
 
-        {/* Map Section */}
-        <Card noPadding className="overflow-hidden">
-          <div className="p-4 bg-earth-50 border-b border-earth-100">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <MapPin className="w-5 h-5 text-earth-600" />
-                <h2 className="text-lg font-semibold text-gray-900">Wildlife Map</h2>
-                {!isDeviceOwner && (
-                  <Badge variant="neutral" size="sm" className="ml-2">
-                    <Lock className="w-3 h-3 mr-1" />
-                    Limited View
-                  </Badge>
-                )}
-              </div>
-              <div className="flex gap-2 text-xs">
-                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-500"></span> Danger</span>
-                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-amber-500"></span> Warning</span>
-                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-500"></span> Safe</span>
-              </div>
+      {/* Critical Alerts Banner */}
+      {criticalAlertsList.length > 0 && (
+        <Card className="bg-danger-50 border-danger-200">
+          <div className="flex items-start space-x-3">
+            <div className="p-2 bg-danger-100 rounded-lg">
+              <AlertTriangle className="w-5 h-5 text-danger-600" />
             </div>
-          </div>
-          
-          {detectionsWithLocation.length > 0 || (user?.home_lat && user?.home_lon) ? (
-            <div className="h-[350px] lg:h-[400px]">
-              <MapContainer
-                center={mapCenter}
-                zoom={12}
-                className="h-full w-full"
-                scrollWheelZoom={true}
-              >
-                <TileLayer
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                />
-
-                {/* User's home location */}
-                {user?.home_lat && user?.home_lon && (
-                  <Marker position={[user.home_lat, user.home_lon]}>
-                    <Popup>
-                      <div className="text-center">
-                        <p className="font-semibold">📍 Your Location</p>
-                      </div>
-                    </Popup>
-                  </Marker>
-                )}
-
-                {/* Animal Markers - only show detections with visible locations */}
-                {detectionsWithLocation.slice(0, 20).map((detection) => (
-                  <Marker
-                    key={detection.id}
-                    position={[detection.location.lat, detection.location.lng]}
-                    icon={createAnimalIcon(detection.animalType, detection.riskLevel)}
-                  >
-                    <Popup>
-                      <div className="p-1 min-w-[150px]">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-2xl">{getAnimalIcon(detection.animalType)}</span>
-                          <div>
-                            <p className="font-semibold">{detection.animalName}</p>
-                            <p className="text-xs text-gray-500">{formatSmartDate(detection.timestamp)}</p>
-                          </div>
-                        </div>
-                        <Badge
-                          variant={detection.riskLevel === 'danger' ? 'danger' : detection.riskLevel === 'warning' ? 'warning' : 'success'}
-                          size="sm"
-                        >
-                          {detection.riskLevel === 'danger' ? '⚠️ Keep Distance' : detection.riskLevel === 'warning' ? 'Caution' : 'Safe'}
-                        </Badge>
-                      </div>
-                    </Popup>
-                  </Marker>
+            <div className="flex-1">
+              <h3 className="font-semibold text-danger-800">⚠️ Wildlife Safety Alerts</h3>
+              <p className="text-sm text-danger-600 mt-1">Dangerous animals detected in your area. Please stay alert!</p>
+              <div className="mt-2 space-y-2">
+                {criticalAlertsList.map((alert) => (
+                  <div key={alert.id} className="flex items-center justify-between">
+                    <p className="text-sm text-danger-700">{alert.message}</p>
+                    <Badge variant="danger" size="sm">
+                      {formatSmartDate(alert.timestamp)}
+                    </Badge>
+                  </div>
                 ))}
-              </MapContainer>
+              </div>
+              <Button
+                variant="danger"
+                size="sm"
+                className="mt-3"
+                onClick={() => navigate('/public/alerts')}
+              >
+                View All Alerts
+              </Button>
             </div>
-          ) : (
-            <div className="h-[350px] lg:h-[400px] flex items-center justify-center bg-gray-100">
-              <div className="text-center text-gray-500">
-                <Lock className="w-12 h-12 mx-auto mb-3 text-gray-400" />
-                <p className="font-medium">Location Data Hidden</p>
-                <p className="text-sm mt-1">
-                  Exact wildlife locations are only available to device owners and rangers
-                </p>
+          </div>
+        </Card>
+      )}
+
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Recent Detections */}
+        <div className="lg:col-span-2">
+          <Card>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Recent Wildlife Sightings</h2>
+            </div>
+
+            {recentDetections.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="text-left text-sm text-gray-500 border-b">
+                      <th className="pb-3 font-medium">Animal</th>
+                      <th className="pb-3 font-medium hidden sm:table-cell">Time</th>
+                      <th className="pb-3 font-medium">Risk Level</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {recentDetections.map((detection) => {
+                      const riskConfig = getRiskConfig(detection.riskLevel);
+                      return (
+                        <tr key={detection.id} className="hover:bg-gray-50">
+                          <td className="py-3">
+                            <div className="flex items-center space-x-2">
+                              <span className="text-xl">{getAnimalIcon(detection.animalType)}</span>
+                              <span className="font-medium text-gray-900">{detection.animalName}</span>
+                            </div>
+                          </td>
+                          <td className="py-3 hidden sm:table-cell">
+                            <div className="flex items-center text-gray-500 text-sm">
+                              <Clock className="w-4 h-4 mr-1" />
+                              {formatSmartDate(detection.timestamp)}
+                            </div>
+                          </td>
+                          <td className="py-3">
+                            <Badge
+                              variant={detection.riskLevel === 'danger' ? 'danger' : 
+                                      detection.riskLevel === 'warning' ? 'warning' : 'success'}
+                            >
+                              {riskConfig.label}
+                            </Badge>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <EmptyState
+                icon={Eye}
+                title="No recent sightings"
+                description="Wildlife detections will appear here when animals are spotted in the monitored areas."
+              />
+            )}
+          </Card>
+        </div>
+
+        {/* Safety Tips & Info */}
+        <div className="space-y-6">
+          {/* Safety Tips */}
+          <Card>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Wildlife Safety Tips</h2>
+            <div className="space-y-3">
+              <div className="flex items-start gap-3 p-3 bg-danger-50 rounded-lg">
+                <AlertTriangle className="w-5 h-5 text-danger-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium text-danger-800 text-sm">Danger Alert</p>
+                  <p className="text-xs text-danger-600 mt-0.5">Stay indoors and alert authorities if you spot a dangerous animal.</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-3 bg-warning-50 rounded-lg">
+                <AlertTriangle className="w-5 h-5 text-warning-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium text-warning-800 text-sm">Warning Alert</p>
+                  <p className="text-xs text-warning-600 mt-0.5">Be cautious and avoid the area until cleared.</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-3 bg-safe-50 rounded-lg">
+                <Eye className="w-5 h-5 text-safe-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium text-safe-800 text-sm">Safe Sighting</p>
+                  <p className="text-xs text-safe-600 mt-0.5">Low-risk wildlife spotted. Observe from a safe distance.</p>
+                </div>
               </div>
             </div>
-          )}
-        </Card>
+          </Card>
 
-        {/* Recent Sightings */}
-        <Card>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Recent Sightings</h3>
-            <div className="flex items-center gap-2">
-              <Badge variant="neutral">{publicDetections.length} total</Badge>
-              {!isDeviceOwner && publicDetections.some(d => d.locationHidden) && (
-                <Badge variant="warning" size="sm">
-                  <Lock className="w-3 h-3 mr-1" />
-                  Annotated Images
-                </Badge>
-              )}
+          {/* Restricted Features Notice */}
+          <Card className="bg-gray-50 border-gray-200">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-gray-200 rounded-lg">
+                <Lock className="w-5 h-5 text-gray-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-800">Public Access</h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Some features like camera management and detailed location data are restricted to authorized rangers.
+                </p>
+                {!isDeviceOwner && (
+                  <p className="text-xs text-gray-500 mt-2">
+                    Own a monitoring device? Contact support to get device owner access.
+                  </p>
+                )}
+              </div>
             </div>
-          </div>
-          
-          {publicDetections.length > 0 ? (
-            <div className="space-y-3">
-              {publicDetections.slice(0, 6).map((detection) => (
-                <div
-                  key={detection.id}
-                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                >
-                  <div className="flex items-center gap-3">
-                    {/* Show thumbnail if image available */}
-                    {detection.imageUrl ? (
-                      <div className="relative">
-                        <img 
-                          src={detection.imageUrl} 
-                          alt={detection.animalName}
-                          className="w-12 h-12 rounded-lg object-cover"
-                        />
-                        {detection.locationHidden && (
-                          <div className="absolute -top-1 -right-1 bg-amber-500 rounded-full p-0.5">
-                            <Lock className="w-3 h-3 text-white" />
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-2xl">{getAnimalIcon(detection.animalType)}</span>
-                    )}
-                    <div>
-                      <p className="font-medium text-gray-900">{detection.animalName}</p>
-                      <p className="text-xs text-gray-500 flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {formatSmartDate(detection.timestamp)}
-                        {detection.locationHidden && (
-                          <span className="text-amber-600 ml-2">(Location hidden)</span>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                  <Badge
-                    variant={detection.riskLevel === 'danger' ? 'danger' : detection.riskLevel === 'warning' ? 'warning' : 'success'}
-                    size="sm"
-                  >
-                    {detection.riskLevel}
-                  </Badge>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-gray-500">
-              <Eye className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-              <p>No wildlife sightings yet</p>
-              <p className="text-sm">Check back later for updates</p>
-            </div>
-          )}
-        </Card>
-
-        {/* Safety Tips */}
-        <Card>
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">🛡️ Safety Tips</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 bg-red-50 rounded-lg border border-red-100">
-              <p className="font-medium text-red-800">If you encounter a wild animal:</p>
-              <ul className="text-sm text-red-700 mt-2 space-y-1">
-                <li>• Stay calm and don't run</li>
-                <li>• Back away slowly</li>
-                <li>• Don't make direct eye contact</li>
-                <li>• Make yourself appear larger</li>
-              </ul>
-            </div>
-            <div className="p-4 bg-green-50 rounded-lg border border-green-100">
-              <p className="font-medium text-green-800">General precautions:</p>
-              <ul className="text-sm text-green-700 mt-2 space-y-1">
-                <li>• Keep food stored securely</li>
-                <li>• Make noise while walking</li>
-                <li>• Travel in groups when possible</li>
-                <li>• Keep emergency contacts handy</li>
-              </ul>
-            </div>
-          </div>
-        </Card>
-      </main>
-
-      {/* Footer */}
-      <footer className="bg-gray-100 border-t border-gray-200 py-6 mt-8">
-        <div className="max-w-7xl mx-auto px-4 text-center text-gray-500 text-sm">
-          <p>🌲 Wildlife Watch - Protecting Wildlife, Keeping Communities Safe</p>
-          <p className="mt-1">For emergencies, contact the Forest Department immediately.</p>
+          </Card>
         </div>
-      </footer>
+      </div>
     </div>
   );
 }

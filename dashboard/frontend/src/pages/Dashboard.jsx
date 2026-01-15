@@ -1,8 +1,9 @@
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, Circle, Polyline } from 'react-leaflet';
 import L from 'leaflet';
-import { Camera, AlertTriangle, Activity, Eye, ChevronRight, Clock, Shield, Users, MapPin, Upload } from 'lucide-react';
+import { Camera, AlertTriangle, Activity, Eye, ChevronRight, Clock, Shield, Users, MapPin, Upload, Navigation } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { useAlerts } from '../context/AlertContext';
 import { Card, Badge, Button, StatCard, EmptyState } from '../components/ui';
 import { formatSmartDate, getAnimalIcon, getRiskConfig } from '../utils/helpers';
@@ -90,6 +91,7 @@ const trailColors = {
 function RangerDashboard() {
   const navigate = useNavigate();
   const { cameras, detections, isLoadingData } = useApp();
+  const { userLocation } = useAuth();
   const { alerts, unresolvedCount } = useAlerts();
 
   const onlineCameras = cameras.filter((c) => c.status === 'online').length;
@@ -100,11 +102,13 @@ function RangerDashboard() {
   const recentDetections = detections.slice(0, 5);
   const criticalAlertsList = alerts.filter((a) => a.severity === 'danger' && !a.isResolved).slice(0, 3);
 
-  // Map configuration - center on first camera location or default
+  // Map configuration - prefer user location, then camera location, then default
   const firstCameraWithLocation = cameras.find(c => c.location?.lat && c.location?.lng);
-  const mapCenter = firstCameraWithLocation 
-    ? [firstCameraWithLocation.location.lat, firstCameraWithLocation.location.lng]
-    : [12.9716, 77.5946]; // Default to Bangalore
+  const mapCenter = userLocation
+    ? [userLocation.lat, userLocation.lng]
+    : firstCameraWithLocation 
+      ? [firstCameraWithLocation.location.lat, firstCameraWithLocation.location.lng]
+      : [12.9716, 77.5946]; // Default to Bangalore
   const mapZoom = 12;
 
   return (
@@ -206,6 +210,35 @@ function RangerDashboard() {
                 }}
               />
             ))}
+
+            {/* User Location Marker */}
+            {userLocation && (
+              <Marker
+                position={[userLocation.lat, userLocation.lng]}
+                icon={L.divIcon({
+                  className: 'custom-user-marker',
+                  html: `
+                    <div style="
+                      width: 24px;
+                      height: 24px;
+                      border-radius: 50%;
+                      background: #3B82F6;
+                      border: 3px solid white;
+                      box-shadow: 0 2px 8px rgba(59, 130, 246, 0.5);
+                    "></div>
+                  `,
+                  iconSize: [24, 24],
+                  iconAnchor: [12, 12],
+                })}
+              >
+                <Popup>
+                  <div className="text-center p-1">
+                    <Navigation className="w-4 h-4 text-blue-500 mx-auto mb-1" />
+                    <p className="font-semibold text-sm">Your Location</p>
+                  </div>
+                </Popup>
+              </Marker>
+            )}
 
             {/* Camera Markers - only show cameras with visible locations */}
             {cameras.filter(c => c.location && !c.locationHidden).map((camera) => (

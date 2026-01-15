@@ -14,6 +14,7 @@ import {
   Shield,
   Users,
   Upload,
+  Smartphone,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useApp } from '../../context/AppContext';
@@ -21,7 +22,7 @@ import { useAlerts } from '../../context/AlertContext';
 import { cn } from '../../utils/helpers';
 
 // Navigation items for ranger dashboard (all paths under /ranger/)
-const navItems = [
+const rangerNavItems = [
   { path: '/ranger', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { path: '/ranger/live-monitoring', icon: Video, label: 'Live Monitoring' },
   { path: '/ranger/map-tracking', icon: Map, label: 'Map Tracking' },
@@ -33,11 +34,21 @@ const navItems = [
   { path: '/ranger/settings', icon: Settings, label: 'Settings' },
 ];
 
+// Navigation items for public users (limited access)
+const publicNavItems = [
+  { path: '/public', icon: LayoutDashboard, label: 'Dashboard', end: true },
+  { path: '/public/alerts', icon: Bell, label: 'Alerts', badge: true },
+  { path: '/public/my-devices', icon: Smartphone, label: 'My Devices' },
+];
+
 function Sidebar() {
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user, logout, isRanger } = useAuth();
   const { sidebarOpen, setSidebarOpen } = useApp();
   const { unreadCount } = useAlerts();
+
+  // Use appropriate nav items based on user type
+  const navItems = isRanger ? rangerNavItems : publicNavItems;
 
   return (
     <aside
@@ -112,16 +123,19 @@ function Sidebar() {
         {sidebarOpen ? (
           <div className="space-y-3">
             {/* Role Badge */}
-            <div className="flex items-center justify-center gap-2 py-1.5 px-3 rounded-full text-xs font-medium bg-forest-700 text-forest-100">
+            <div className={cn(
+              "flex items-center justify-center gap-2 py-1.5 px-3 rounded-full text-xs font-medium",
+              isRanger ? "bg-forest-700 text-forest-100" : "bg-earth-700 text-earth-100"
+            )}>
               <Shield className="w-3 h-3" />
-              Forest Ranger
+              {isRanger ? 'Forest Ranger' : 'Public User'}
             </div>
             
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 <div className="w-9 h-9 rounded-full flex items-center justify-center bg-forest-700">
                   <span className="text-sm font-medium">
-                    {user?.name?.charAt(0) || 'R'}
+                    {user?.name?.charAt(0) || 'U'}
                   </span>
                 </div>
                 <div className="text-sm">
@@ -142,7 +156,10 @@ function Sidebar() {
           </div>
         ) : (
           <div className="space-y-2">
-            <div className="w-full p-2 rounded-lg flex justify-center bg-forest-700">
+            <div className={cn(
+              "w-full p-2 rounded-lg flex justify-center",
+              isRanger ? "bg-forest-700" : "bg-earth-700"
+            )}>
               <Shield className="w-4 h-4" />
             </div>
             <button

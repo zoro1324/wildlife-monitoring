@@ -19,6 +19,7 @@ import CameraHealth from './pages/CameraHealth';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
 import DeviceSimulator from './pages/DeviceSimulator';
+import MyDevices from './pages/MyDevices';
 
 // Landing page component
 function LandingPage() {
@@ -119,8 +120,12 @@ function AppRoutes() {
       <Route path="/signup" element={<AuthRoute><Signup /></AuthRoute>} />
       <Route path="/ranger-login" element={<AuthRoute><Login /></AuthRoute>} />
       
-      {/* Public User Dashboard */}
-      <Route path="/public" element={<PublicUserRoute><UserDashboard /></PublicUserRoute>} />
+      {/* Public User Routes - Uses MainLayout with limited sidebar */}
+      <Route path="/public" element={<PublicUserRoute><MainLayout /></PublicUserRoute>}>
+        <Route index element={<UserDashboard />} />
+        <Route path="alerts" element={<AlertsCenter />} />
+        <Route path="my-devices" element={<MyDevices />} />
+      </Route>
       
       {/* Ranger Routes - Login required */}
       <Route path="/ranger" element={<RangerRoute><MainLayout /></RangerRoute>}>

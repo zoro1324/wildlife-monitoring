@@ -24,7 +24,7 @@ function Header() {
   const recentAlerts = alerts.filter((a) => !a.isRead).slice(0, 5);
 
   return (
-    <header className="h-16 bg-white border-b border-gray-200 px-4 flex items-center justify-between sticky top-0 z-30">
+     <header className="h-16 bg-white border-b border-gray-200 px-4 flex items-center justify-between sticky top-0 z-50">
       {/* Left Section */}
       <div className="flex items-center space-x-4">
         {/* Mobile Menu Button */}
@@ -80,7 +80,7 @@ function Header() {
 
           {/* Notifications Dropdown */}
           {showNotifications && (
-            <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-200 animate-fade-in">
+            <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-200 animate-fade-in z-[9999]">
               <div className="p-3 border-b border-gray-100">
                 <h3 className="font-semibold text-gray-900">Notifications</h3>
               </div>

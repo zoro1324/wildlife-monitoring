@@ -127,7 +127,27 @@ export const authAPI = {
     const data = await response.json();
 
     if (!response.ok) {
-      const errorMsg = Object.values(data.errors || {}).flat().join(', ') || 'Signup failed';
+      // Handle different error response formats
+      let errorMsg = 'Signup failed';
+      
+      if (data.errors) {
+        // Format: { errors: { field: ["error1", "error2"] } }
+        const errorMessages = Object.entries(data.errors).map(([field, msgs]) => {
+          const fieldName = field.replace(/_/g, ' ');
+          return `${fieldName}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`;
+        });
+        errorMsg = errorMessages.join('; ');
+      } else if (data.error) {
+        // Format: { error: "message" }
+        errorMsg = data.error;
+      } else if (data.detail) {
+        // Format: { detail: "message" }
+        errorMsg = data.detail;
+      } else if (typeof data === 'string') {
+        // Format: "error message"
+        errorMsg = data;
+      }
+      
       throw new Error(errorMsg);
     }
 
