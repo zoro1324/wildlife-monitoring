@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { Grid, Maximize2, Minimize2, Camera, Battery, Wifi, AlertTriangle } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { Card, Badge, Button } from '../components/ui';
+import { useAuth } from '../context/AuthContext';
+import { Card, Badge, Button, EmptyState } from '../components/ui';
 import { cn, formatSmartDate, getAnimalIcon } from '../utils/helpers';
 
 function LiveMonitoring() {
   const { cameras, detections } = useApp();
+  const { isRanger } = useAuth();
   const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'single'
   const [selectedCamera, setSelectedCamera] = useState(null);
 
@@ -16,6 +18,27 @@ function LiveMonitoring() {
     return detections.find((d) => d.cameraId === cameraId);
   };
 
+  // Show empty state for public users with no cameras
+  if (!isRanger && cameras.length === 0) {
+    return (
+      <div className="space-y-6 pb-16 lg:pb-0">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-display font-bold text-gray-900">
+              Live Monitoring
+            </h1>
+            <p className="text-gray-600 mt-1">Monitor your cameras in real-time</p>
+          </div>
+        </div>
+        <EmptyState
+          icon={Camera}
+          title="No Cameras Added"
+          description="Add a camera to your account to start monitoring. Go to My Devices to add your camera."
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 pb-16 lg:pb-0">
       {/* Header */}
@@ -25,7 +48,10 @@ function LiveMonitoring() {
             Live Monitoring
           </h1>
           <p className="text-gray-600 mt-1">
-            {onlineCameras.length} of {cameras.length} cameras online
+            {isRanger 
+              ? `${onlineCameras.length} of ${cameras.length} cameras online`
+              : `Monitoring ${cameras.length} camera${cameras.length !== 1 ? 's' : ''}`
+            }
           </p>
         </div>
         <div className="flex items-center space-x-2">
