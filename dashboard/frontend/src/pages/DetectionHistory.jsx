@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Search, Filter, Download, Camera, Clock, MapPin, X, ChevronDown, ChevronUp, Lock, Image as ImageIcon } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { Card, Badge, Button, Input, Select, EmptyState, Modal } from '../components/ui';
 import { formatSmartDate, formatConfidence, getAnimalIcon, getRiskConfig, cn } from '../utils/helpers';
 
@@ -19,7 +20,9 @@ const animalTypes = [
 
 function DetectionHistory() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { cameras, detections } = useApp();
+  const { isRanger } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [selectedDetection, setSelectedDetection] = useState(null);
@@ -29,6 +32,9 @@ function DetectionHistory() {
     riskLevel: 'all',
     dateRange: 'all',
   });
+  
+  // Determine base path for navigation
+  const basePath = location.pathname.startsWith('/ranger') ? '/ranger' : '/public';
 
   const animalOptions = [
     { value: 'all', label: 'All Animals' },
@@ -94,7 +100,9 @@ function DetectionHistory() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-display font-bold text-gray-900">Detection History</h1>
-          <p className="text-gray-600 mt-1">Browse and search all animal detections</p>
+          <p className="text-gray-600 mt-1">
+            {isRanger ? 'Browse and search all animal detections' : 'Browse detections from your cameras'}
+          </p>
         </div>
         <Button variant="ghost" leftIcon={<Download className="w-4 h-4" />}>Export</Button>
       </div>
@@ -263,12 +271,12 @@ function DetectionHistory() {
             </div>
             {selectedDetection.notes && <div className="p-3 bg-gray-50 rounded-lg"><p className="text-sm text-gray-600">{selectedDetection.notes}</p></div>}
             <div className="flex justify-end pt-4 border-t gap-2">
-              {selectedDetection.location && !selectedDetection.locationHidden && (
+              {isRanger && selectedDetection.location && !selectedDetection.locationHidden && (
                 <Button
                   variant="outline"
                   leftIcon={<MapPin className="w-4 h-4" />}
                   onClick={() => {
-                    navigate('/map-tracking', { 
+                    navigate(`${basePath}/map-tracking`, { 
                       state: { 
                         targetLocation: {
                           lat: selectedDetection.location.lat,

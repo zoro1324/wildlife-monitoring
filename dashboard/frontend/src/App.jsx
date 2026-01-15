@@ -124,6 +124,8 @@ function AppRoutes() {
       {/* Public User Routes - Uses MainLayout with limited sidebar */}
       <Route path="/public" element={<PublicUserRoute><MainLayout /></PublicUserRoute>}>
         <Route index element={<UserDashboard />} />
+        <Route path="live-monitoring" element={<LiveMonitoring />} />
+        <Route path="detection-history" element={<DetectionHistory />} />
         <Route path="alerts" element={<AlertsCenter />} />
         <Route path="my-devices" element={<MyDevices />} />
         <Route path="home-location" element={<HomeLocation />} />

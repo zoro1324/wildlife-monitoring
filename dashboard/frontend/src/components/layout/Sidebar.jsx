@@ -38,6 +38,8 @@ const rangerNavItems = [
 // Navigation items for public users (limited access)
 const publicNavItems = [
   { path: '/public', icon: LayoutDashboard, label: 'Dashboard', end: true },
+  { path: '/public/live-monitoring', icon: Video, label: 'Live Monitoring' },
+  { path: '/public/detection-history', icon: History, label: 'Detection History' },
   { path: '/public/alerts', icon: Bell, label: 'Alerts', badge: true },
   { path: '/public/my-devices', icon: Smartphone, label: 'My Devices' },
   { path: '/public/home-location', icon: Home, label: 'Home Location' },

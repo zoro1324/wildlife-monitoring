@@ -1,10 +1,11 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Video, Map, Bell, Upload } from 'lucide-react';
+import { LayoutDashboard, Video, Map, Bell, Upload, History } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import { useAlerts } from '../../context/AlertContext';
 import { cn } from '../../utils/helpers';
 
 // Navigation items for ranger mobile nav (under /ranger/)
-const navItems = [
+const rangerNavItems = [
   { path: '/ranger', icon: LayoutDashboard, label: 'Home', end: true },
   { path: '/ranger/live-monitoring', icon: Video, label: 'Live' },
   { path: '/ranger/map-tracking', icon: Map, label: 'Map' },
@@ -12,8 +13,20 @@ const navItems = [
   { path: '/ranger/device-simulator', icon: Upload, label: 'Simulate' },
 ];
 
+// Navigation items for public users mobile nav (under /public/)
+const publicNavItems = [
+  { path: '/public', icon: LayoutDashboard, label: 'Home', end: true },
+  { path: '/public/live-monitoring', icon: Video, label: 'Live' },
+  { path: '/public/detection-history', icon: History, label: 'History' },
+  { path: '/public/alerts', icon: Bell, label: 'Alerts', badge: true },
+];
+
 function MobileNav() {
+  const { isRanger } = useAuth();
   const { unreadCount } = useAlerts();
+  
+  // Use appropriate nav items based on user type
+  const navItems = isRanger ? rangerNavItems : publicNavItems;
 
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40 pb-safe">

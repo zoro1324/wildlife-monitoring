@@ -120,7 +120,7 @@ yolo-models/dataset/
 yolo-models/animal_dataset/
 yolo-models/runs/
 yolo-models/best_models/
-new-models/
+new-models/runs/
 animal_dataset/
 animal_dataset_with_noice/
 animal_with_noise/
