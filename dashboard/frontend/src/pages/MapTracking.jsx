@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle } from 'react-leaflet';
 import L from 'leaflet';
 import { Layers, Camera, Navigation, AlertTriangle } from 'lucide-react';
@@ -51,6 +52,8 @@ const createAnimalIcon = (animalType) => {
 
 function MapTracking() {
   const { cameras, detections } = useApp();
+  const location = useLocation();
+  const [mapRef, setMapRef] = useState(null);
   const [showLayers, setShowLayers] = useState({
     cameras: true,
     trails: false,
@@ -59,12 +62,24 @@ function MapTracking() {
   });
   const [selectedTrail, setSelectedTrail] = useState(null);
 
-  // Center map on first camera or default location
+  // Target location passed from other pages (e.g., detection or alert modal)
+  const targetLocation = useMemo(() => location.state?.targetLocation, [location.state]);
+
+  // Center map on target location if provided, otherwise first camera or default location
   const firstCameraWithLocation = cameras.find(c => c.location?.lat && c.location?.lng);
-  const mapCenter = firstCameraWithLocation 
-    ? [firstCameraWithLocation.location.lat, firstCameraWithLocation.location.lng]
-    : [12.9716, 77.5946];
-  const mapZoom = 12;
+  const mapCenter = targetLocation
+    ? [targetLocation.lat, targetLocation.lng]
+    : firstCameraWithLocation 
+      ? [firstCameraWithLocation.location.lat, firstCameraWithLocation.location.lng]
+      : [12.9716, 77.5946];
+  const mapZoom = targetLocation ? 14 : 12;
+
+  // Fly to target location when provided
+  useEffect(() => {
+    if (mapRef && targetLocation?.lat && targetLocation?.lng) {
+      mapRef.flyTo([targetLocation.lat, targetLocation.lng], 14, { duration: 0.75 });
+    }
+  }, [mapRef, targetLocation]);
 
   const trailColors = {
     elephant: '#92400E',
@@ -97,6 +112,7 @@ function MapTracking() {
               zoom={mapZoom}
               className="h-full w-full"
               scrollWheelZoom={true}
+              whenCreated={setMapRef}
             >
               <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -140,6 +156,25 @@ function MapTracking() {
                   </Popup>
                 </Marker>
               ))}
+
+              {/* Highlight target location if present */}
+              {targetLocation && (
+                <>
+                  <Marker position={[targetLocation.lat, targetLocation.lng]} icon={createAnimalIcon('animal')}>
+                    <Popup>
+                      <div className="p-2">
+                        <h3 className="font-semibold text-gray-900">{targetLocation.label || 'Selected Location'}</h3>
+                        <p className="text-sm text-gray-500">{targetLocation.lat.toFixed(6)}, {targetLocation.lng.toFixed(6)}</p>
+                      </div>
+                    </Popup>
+                  </Marker>
+                  <Circle
+                    center={[targetLocation.lat, targetLocation.lng]}
+                    radius={120}
+                    pathOptions={{ color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.12 }}
+                  />
+                </>
+              )}
 
               {/* Recent Detections - only show detections with visible locations */}
               {showLayers.detections && detections.filter(d => d.location && !d.locationHidden).slice(0, 10).map((detection) => (

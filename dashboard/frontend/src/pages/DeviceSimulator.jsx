@@ -231,12 +231,12 @@ function DeviceSimulator() {
                       <span className="font-medium">Animal Detected!</span>
                     </div>
 
-                    {/* Detection Image */}
-                    {result.data?.image_url && (
+                    {/* Detection Image - Show annotated image with bounding boxes */}
+                    {result.data?.annotated_image_url && (
                       <div className="rounded-xl overflow-hidden">
                         <img
-                          src={result.data.image_url}
-                          alt="Detection"
+                          src={result.data.annotated_image_url}
+                          alt="Detection with Bounding Box"
                           className="w-full h-48 object-cover"
                         />
                       </div>

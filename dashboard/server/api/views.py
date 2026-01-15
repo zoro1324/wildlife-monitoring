@@ -96,12 +96,79 @@ class LogoutView(APIView):
 
 
 class UserProfileView(APIView):
-    """Get current user profile information."""
+    """Get or update current user profile information."""
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
         serializer = UserSerializer(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    def put(self, request):
+        """Update user profile (home location, mobile, name)."""
+        from .serializers import UserProfileUpdateSerializer
+        
+        serializer = UserProfileUpdateSerializer(
+            data=request.data, 
+            context={'user': request.user}
+        )
+        if serializer.is_valid():
+            user = serializer.update(request.user, serializer.validated_data)
+            return Response({
+                "message": "Profile updated successfully.",
+                "user": UserSerializer(user).data
+            }, status=status.HTTP_200_OK)
+        
+        return Response({"errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class UserDevicesView(APIView):
+    """Manage user's own devices."""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """Get all devices owned by the current user."""
+        devices = Device.objects.filter(owned_by=request.user)
+        serializer = DeviceSerializer(devices, many=True, context={'request': request})
+        return Response({
+            "count": devices.count(),
+            "devices": serializer.data
+        }, status=status.HTTP_200_OK)
+    
+    def post(self, request):
+        """Add a new device to user's account."""
+        from .serializers import AddDeviceSerializer
+        
+        serializer = AddDeviceSerializer(
+            data=request.data,
+            context={'user': request.user}
+        )
+        if serializer.is_valid():
+            device, created = serializer.save()
+            device_serializer = DeviceSerializer(device, context={'request': request})
+            return Response({
+                "status": "success",
+                "message": "Device added successfully" if created else "Device linked to your account",
+                "device": device_serializer.data
+            }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+        
+        return Response({"errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+    
+    def delete(self, request):
+        """Remove a device from user's account."""
+        device_id = request.query_params.get('device_id')
+        if not device_id:
+            return Response({"error": "device_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            device = Device.objects.get(device_id=device_id, owned_by=request.user)
+            device.owned_by = None
+            device.save()
+            return Response({
+                "status": "success",
+                "message": "Device removed from your account"
+            }, status=status.HTTP_200_OK)
+        except Device.DoesNotExist:
+            return Response({"error": "Device not found or not owned by you"}, status=status.HTTP_404_NOT_FOUND)
 
 
 # ==================== Device Views ====================

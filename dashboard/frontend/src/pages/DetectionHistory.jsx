@@ -199,17 +199,48 @@ function DetectionHistory() {
       <Modal isOpen={!!selectedDetection} onClose={() => setSelectedDetection(null)} title="Detection Details" size="lg">
         {selectedDetection && (
           <div className="space-y-4">
-            <div className="h-64 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
-              {selectedDetection.imageUrl ? (
-                <img 
-                  src={selectedDetection.imageUrl} 
-                  alt={selectedDetection.animalName}
-                  className="w-full h-full object-contain"
-                />
-              ) : (
-                <span className="text-8xl">{getAnimalIcon(selectedDetection.animalType)}</span>
-              )}
+            {/* Side by side image comparison */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* Original Image */}
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium text-gray-700">Original Image</h4>
+                <div className="h-64 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
+                  {selectedDetection.imageUrl ? (
+                    <img 
+                      src={selectedDetection.imageUrl} 
+                      alt={selectedDetection.animalName}
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    <span className="text-8xl">{getAnimalIcon(selectedDetection.animalType)}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Annotated Image with Bounding Box */}
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium text-gray-700">Detection Result</h4>
+                <div className="h-64 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
+                  {selectedDetection.annotatedImageUrl ? (
+                    <img 
+                      src={selectedDetection.annotatedImageUrl} 
+                      alt="Detection with Bounding Box"
+                      className="w-full h-full object-contain"
+                    />
+                  ) : selectedDetection.imageUrl ? (
+                    <img 
+                      src={selectedDetection.imageUrl} 
+                      alt={selectedDetection.animalName}
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    <span className="text-8xl">{getAnimalIcon(selectedDetection.animalType)}</span>
+                  )}
+                </div>
+              </div>
             </div>
+
+            {/* Detection Details */}
             <div className="grid grid-cols-2 gap-4">
               <div><p className="text-sm text-gray-500">Animal</p><p className="font-medium">{selectedDetection.animalName}</p></div>
               <div><p className="text-sm text-gray-500">Confidence</p><p className="font-medium">{formatConfidence(selectedDetection.confidence)}</p></div>
@@ -233,7 +264,23 @@ function DetectionHistory() {
             {selectedDetection.notes && <div className="p-3 bg-gray-50 rounded-lg"><p className="text-sm text-gray-600">{selectedDetection.notes}</p></div>}
             <div className="flex justify-end pt-4 border-t gap-2">
               {selectedDetection.location && !selectedDetection.locationHidden && (
-                <Button variant="outline" leftIcon={<MapPin className="w-4 h-4" />} onClick={() => { setSelectedDetection(null); navigate('/map-tracking'); }}>View on Map</Button>
+                <Button
+                  variant="outline"
+                  leftIcon={<MapPin className="w-4 h-4" />}
+                  onClick={() => {
+                    navigate('/map-tracking', { 
+                      state: { 
+                        targetLocation: {
+                          lat: selectedDetection.location.lat,
+                          lng: selectedDetection.location.lng,
+                          label: `${selectedDetection.animalName} @ ${selectedDetection.cameraId}`,
+                        }
+                      } 
+                    });
+                  }}
+                >
+                  View on Map
+                </Button>
               )}
             </div>
           </div>

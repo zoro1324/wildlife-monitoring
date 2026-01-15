@@ -185,10 +185,83 @@ export const authAPI = {
   },
 
   /**
+   * Update user profile (home location, mobile, name)
+   */
+  async updateProfile(profileData) {
+    const response = await apiRequest('/auth/profile/', {
+      method: 'PUT',
+      body: JSON.stringify(profileData),
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      const errorMsg = data.errors 
+        ? Object.entries(data.errors).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`).join('; ')
+        : data.error || 'Failed to update profile';
+      throw new Error(errorMsg);
+    }
+    
+    return data;
+  },
+
+  /**
    * Check if user is authenticated
    */
   isAuthenticated() {
     return !!getAccessToken();
+  },
+};
+
+// ==================== User Devices API ====================
+
+export const userDevicesAPI = {
+  /**
+   * Get devices owned by the current user
+   */
+  async getMyDevices() {
+    const response = await apiRequest('/user/devices/');
+    if (!response.ok) {
+      throw new Error('Failed to fetch your devices');
+    }
+    return response.json();
+  },
+
+  /**
+   * Add a device to user's account
+   */
+  async addDevice(deviceData) {
+    const response = await apiRequest('/user/devices/', {
+      method: 'POST',
+      body: JSON.stringify(deviceData),
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      const errorMsg = data.errors 
+        ? Object.entries(data.errors).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`).join('; ')
+        : data.error || 'Failed to add device';
+      throw new Error(errorMsg);
+    }
+    
+    return data;
+  },
+
+  /**
+   * Remove a device from user's account
+   */
+  async removeDevice(deviceId) {
+    const response = await apiRequest(`/user/devices/?device_id=${deviceId}`, {
+      method: 'DELETE',
+    });
+    
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error || 'Failed to remove device');
+    }
+    
+    return response.json();
   },
 };
 

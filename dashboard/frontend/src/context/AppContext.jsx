@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { devicesAPI, detectionsAPI } from '../services/api';
+import { devicesAPI, userDevicesAPI, detectionsAPI } from '../services/api';
 import { useAuth } from './AuthContext';
 
 const AppContext = createContext(null);
@@ -62,7 +62,8 @@ const transformDetection = (detection) => {
     riskLevel: getRiskLevel(animalType),
     location: location,
     locationHidden: detection.device_location?.hidden || false,
-    imageUrl: detection.image_url, // Now returns appropriate image based on user role
+    imageUrl: detection.image_url, // Original image for grid display
+    annotatedImageUrl: detection.annotated_image_url, // Annotated image with bounding boxes for modal
   };
 };
 
@@ -88,7 +89,9 @@ export function AppProvider({ children }) {
     if (!isAuthenticated) return;
     
     try {
-      const response = await devicesAPI.getAll();
+      // Rangers see all devices; public/device owners see only their devices
+      const response = isRanger ? await devicesAPI.getAll() : await userDevicesAPI.getMyDevices();
+
       if (response.devices) {
         const transformedDevices = response.devices.map(transformDevice);
         setCameras(transformedDevices);
@@ -97,7 +100,7 @@ export function AppProvider({ children }) {
       console.error('Error fetching devices:', err);
       setError('Failed to fetch devices');
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, isRanger]);
 
   // Fetch detections from API
   const fetchDetections = useCallback(async () => {

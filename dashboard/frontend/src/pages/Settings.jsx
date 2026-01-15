@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { User, Bell, Monitor, Shield, Camera, Save, Check } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { Card, Button, Input, Select, Badge } from '../components/ui';
+import { Card, Button, Input, PhoneInput, Select, Badge } from '../components/ui';
 import { cn } from '../utils/helpers';
 
 function Settings() {
@@ -85,7 +85,7 @@ function Settings() {
                   <Input label="Full Name" defaultValue={user?.name || ''} />
                   <Input label="Email" type="email" defaultValue={user?.email || ''} />
                   <Input label="Role" defaultValue={user?.role || 'Ranger'} disabled />
-                  <Input label="Phone" placeholder="+1 (555) 000-0000" />
+                  <PhoneInput label="Phone" value={user?.mobile_number || ''} />
                 </div>
               </Card>
               <Card>
