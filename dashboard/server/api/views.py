@@ -6,6 +6,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404
+from django.core.files.base import ContentFile
 from pathlib import Path
 from PIL import Image
 import io
@@ -24,6 +25,7 @@ from .serializers import (
     CapturedImageSerializer,
     CapturedImageUploadSerializer,
 )
+from .notifications import send_wildlife_alerts
 
 
 # ==================== Authentication Views ====================
@@ -236,7 +238,7 @@ class CapturedImageView(APIView):
         return self._model
     
     def classify_image(self, image_file):
-        """Run YOLO classification on the image."""
+        """Run YOLO classification on the image and return annotated image."""
         model = self.get_model()
         
         # Read and process image
@@ -249,6 +251,7 @@ class CapturedImageView(APIView):
         
         animal_type = None
         confidence = 0.0
+        annotated_image_data = None
         
         if results and len(results) > 0:
             result = results[0]
@@ -258,14 +261,25 @@ class CapturedImageView(APIView):
                 confidence = float(result.probs.top1conf)
                 class_id = int(result.probs.top1)
                 animal_type = result.names[class_id]
+                # For classification, annotated image is same as original
+                annotated_image_data = image_data
             elif result.boxes and len(result.boxes) > 0:
-                # Detection mode
+                # Detection mode - get annotated image with bounding boxes
                 best_box = result.boxes[0]
                 confidence = float(best_box.conf[0])
                 class_id = int(best_box.cls[0])
                 animal_type = result.names[class_id]
+                
+                # Generate annotated image with bounding boxes
+                annotated_array = result.plot()  # Returns numpy array with boxes drawn
+                annotated_pil = Image.fromarray(annotated_array)
+                
+                # Convert to bytes
+                annotated_buffer = io.BytesIO()
+                annotated_pil.save(annotated_buffer, format='JPEG', quality=90)
+                annotated_image_data = annotated_buffer.getvalue()
         
-        return animal_type, confidence
+        return animal_type, confidence, annotated_image_data
     
     def post(self, request):
         serializer = CapturedImageUploadSerializer(data=request.data)
@@ -278,7 +292,7 @@ class CapturedImageView(APIView):
         
         try:
             # Run YOLO classification
-            animal_type, confidence = self.classify_image(image_file)
+            animal_type, confidence, annotated_image_data = self.classify_image(image_file)
             
             # Handle no detection
             if not animal_type:
@@ -309,10 +323,25 @@ class CapturedImageView(APIView):
                 confidence=confidence
             )
             
+            # Save annotated image if available
+            if annotated_image_data:
+                annotated_filename = f"annotated_{captured_image.id}.jpg"
+                captured_image.annotated_image.save(
+                    annotated_filename,
+                    ContentFile(annotated_image_data),
+                    save=True
+                )
+            
             # Build response
             image_url = None
+            annotated_url = None
             if captured_image.image:
                 image_url = request.build_absolute_uri(captured_image.image.url)
+            if captured_image.annotated_image:
+                annotated_url = request.build_absolute_uri(captured_image.annotated_image.url)
+            
+            # Send wildlife alerts (WhatsApp to nearby users, call to device owner)
+            send_wildlife_alerts(device, animal_type, confidence, annotated_url or image_url)
             
             return Response({
                 "status": "success",
@@ -324,7 +353,8 @@ class CapturedImageView(APIView):
                     "confidence": captured_image.confidence,
                     "confidence_percentage": f"{captured_image.confidence * 100:.2f}%",
                     "timestamp": captured_image.timestamp.isoformat(),
-                    "image_url": image_url
+                    "image_url": image_url,
+                    "annotated_image_url": annotated_url
                 }
             }, status=status.HTTP_201_CREATED)
             
@@ -337,12 +367,37 @@ class CapturedImageView(APIView):
 
 
 class CapturedImageListView(generics.ListAPIView):
-    """List all captured images with filtering options."""
+    """List captured images based on user access level.
+    - Rangers: See all images from all devices
+    - Device owners: See only images from their own devices
+    - Public users: See recent alerts (no exact locations, boxed images only)
+    """
     permission_classes = [IsAuthenticated]
     serializer_class = CapturedImageSerializer
     
     def get_queryset(self):
+        user = self.request.user
         queryset = CapturedImage.objects.all()
+        
+        # Check user type
+        is_ranger = hasattr(user, 'profile') and user.profile.user_type == 'ranger'
+        
+        if is_ranger:
+            # Rangers see all images
+            pass
+        else:
+            # Check if user owns any devices
+            owned_devices = Device.objects.filter(owned_by=user)
+            
+            if owned_devices.exists():
+                # Device owners see only their device images
+                queryset = queryset.filter(device__in=owned_devices)
+            else:
+                # Public users without devices: see recent alerts (last 24 hours)
+                from django.utils import timezone
+                from datetime import timedelta
+                last_24_hours = timezone.now() - timedelta(hours=24)
+                queryset = queryset.filter(timestamp__gte=last_24_hours)
         
         # Filter by device_id
         device_id = self.request.query_params.get('device_id')
@@ -360,9 +415,16 @@ class CapturedImageListView(generics.ListAPIView):
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
         
+        # Add user access info to response
+        user = request.user
+        is_ranger = hasattr(user, 'profile') and user.profile.user_type == 'ranger'
+        owned_devices = Device.objects.filter(owned_by=user).count()
+        
         return Response({
             "count": queryset.count(),
-            "images": serializer.data
+            "images": serializer.data,
+            "access_level": "ranger" if is_ranger else ("device_owner" if owned_devices > 0 else "public"),
+            "owned_devices_count": owned_devices
         })
 
 

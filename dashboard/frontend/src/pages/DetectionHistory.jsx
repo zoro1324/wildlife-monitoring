@@ -1,10 +1,21 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Filter, Download, Camera, Clock, MapPin, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, Filter, Download, Camera, Clock, MapPin, X, ChevronDown, ChevronUp, Lock, Image as ImageIcon } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Card, Badge, Button, Input, Select, EmptyState, Modal } from '../components/ui';
-import { animalTypes } from '../data/mockData';
 import { formatSmartDate, formatConfidence, getAnimalIcon, getRiskConfig, cn } from '../utils/helpers';
+
+// Animal types configuration
+const animalTypes = [
+  { id: 'elephant', name: 'Elephant', icon: '🐘' },
+  { id: 'tiger', name: 'Tiger', icon: '🐅' },
+  { id: 'lion', name: 'Lion', icon: '🦁' },
+  { id: 'leopard', name: 'Leopard', icon: '🐆' },
+  { id: 'bear', name: 'Bear', icon: '🐻' },
+  { id: 'bison', name: 'Bison', icon: '🦬' },
+  { id: 'boar', name: 'Wild Boar', icon: '🐗' },
+  { id: 'human', name: 'Human', icon: '🧑' },
+];
 
 function DetectionHistory() {
   const navigate = useNavigate();
@@ -135,9 +146,27 @@ function DetectionHistory() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredDetections.map((detection) => (
             <Card key={detection.id} hoverable noPadding className="overflow-hidden cursor-pointer" onClick={() => setSelectedDetection(detection)}>
-              <div className="relative h-40 bg-gray-100 flex items-center justify-center">
-                <span className="text-5xl">{getAnimalIcon(detection.animalType)}</span>
-                <div className="absolute top-2 right-2">
+              <div className="relative h-40 bg-gray-100 flex items-center justify-center overflow-hidden">
+                {detection.imageUrl ? (
+                  <img 
+                    src={detection.imageUrl} 
+                    alt={detection.animalName}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                      e.target.nextSibling.style.display = 'flex';
+                    }}
+                  />
+                ) : null}
+                <div className={cn("text-5xl", detection.imageUrl ? "hidden" : "flex")} style={{ display: detection.imageUrl ? 'none' : 'flex' }}>
+                  {getAnimalIcon(detection.animalType)}
+                </div>
+                <div className="absolute top-2 right-2 flex gap-1">
+                  {detection.locationHidden && (
+                    <Badge variant="neutral" className="bg-gray-800/70 text-white">
+                      <Lock className="w-3 h-3" />
+                    </Badge>
+                  )}
                   <Badge variant={detection.riskLevel === 'danger' ? 'danger' : detection.riskLevel === 'warning' ? 'warning' : 'success'}>
                     {getRiskConfig(detection.riskLevel).label}
                   </Badge>
@@ -154,6 +183,9 @@ function DetectionHistory() {
                 <div className="space-y-1.5 text-sm text-gray-600">
                   <div className="flex items-center"><Camera className="w-4 h-4 mr-2 text-gray-400" />{detection.cameraName}</div>
                   <div className="flex items-center"><Clock className="w-4 h-4 mr-2 text-gray-400" />{formatSmartDate(detection.timestamp)}</div>
+                  {detection.locationHidden && (
+                    <div className="flex items-center text-amber-600"><Lock className="w-4 h-4 mr-2" />Location hidden</div>
+                  )}
                 </div>
               </div>
             </Card>
@@ -167,18 +199,42 @@ function DetectionHistory() {
       <Modal isOpen={!!selectedDetection} onClose={() => setSelectedDetection(null)} title="Detection Details" size="lg">
         {selectedDetection && (
           <div className="space-y-4">
-            <div className="h-48 bg-gray-100 rounded-lg flex items-center justify-center">
-              <span className="text-8xl">{getAnimalIcon(selectedDetection.animalType)}</span>
+            <div className="h-64 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
+              {selectedDetection.imageUrl ? (
+                <img 
+                  src={selectedDetection.imageUrl} 
+                  alt={selectedDetection.animalName}
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <span className="text-8xl">{getAnimalIcon(selectedDetection.animalType)}</span>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div><p className="text-sm text-gray-500">Animal</p><p className="font-medium">{selectedDetection.animalName}</p></div>
               <div><p className="text-sm text-gray-500">Confidence</p><p className="font-medium">{formatConfidence(selectedDetection.confidence)}</p></div>
               <div><p className="text-sm text-gray-500">Camera</p><p className="font-medium">{selectedDetection.cameraId}</p></div>
               <div><p className="text-sm text-gray-500">Time</p><p className="font-medium">{formatSmartDate(selectedDetection.timestamp)}</p></div>
+              {selectedDetection.location && !selectedDetection.locationHidden && (
+                <div className="col-span-2">
+                  <p className="text-sm text-gray-500">Location</p>
+                  <p className="font-medium">{selectedDetection.location.lat.toFixed(6)}, {selectedDetection.location.lng.toFixed(6)}</p>
+                </div>
+              )}
+              {selectedDetection.locationHidden && (
+                <div className="col-span-2">
+                  <p className="text-sm text-gray-500">Location</p>
+                  <p className="font-medium text-amber-600 flex items-center gap-1">
+                    <Lock className="w-4 h-4" /> Hidden for privacy
+                  </p>
+                </div>
+              )}
             </div>
             {selectedDetection.notes && <div className="p-3 bg-gray-50 rounded-lg"><p className="text-sm text-gray-600">{selectedDetection.notes}</p></div>}
-            <div className="flex justify-end pt-4 border-t">
-              <Button variant="outline" leftIcon={<MapPin className="w-4 h-4" />} onClick={() => { setSelectedDetection(null); navigate('/map-tracking'); }}>View on Map</Button>
+            <div className="flex justify-end pt-4 border-t gap-2">
+              {selectedDetection.location && !selectedDetection.locationHidden && (
+                <Button variant="outline" leftIcon={<MapPin className="w-4 h-4" />} onClick={() => { setSelectedDetection(null); navigate('/map-tracking'); }}>View on Map</Button>
+              )}
             </div>
           </div>
         )}

@@ -29,5 +29,6 @@ class CapturedImageAdmin(admin.ModelAdmin):
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
-    list_display = ("user", "mobile_number")
+    list_display = ("user", "mobile_number", "home_lat", "home_lon")
     search_fields = ("user__username", "mobile_number")
+    list_filter = ("user__is_active",)

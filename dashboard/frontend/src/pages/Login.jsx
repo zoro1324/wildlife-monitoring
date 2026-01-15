@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Eye, EyeOff, Mail, Lock, Shield, ArrowLeft } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, Shield, Trees } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Button, Input } from '../components/ui';
 
@@ -21,7 +21,12 @@ function Login() {
     const result = await loginAsRanger(email, password);
     
     if (result.success) {
-      navigate('/ranger');
+      // Redirect based on user type
+      if (result.userType === 'ranger') {
+        navigate('/ranger');
+      } else {
+        navigate('/public');
+      }
     } else {
       setError(result.error || 'Invalid credentials');
     }
@@ -29,8 +34,8 @@ function Login() {
   };
 
   const fillDemoCredentials = () => {
-    setEmail('ranger@wildlife.gov');
-    setPassword('demo123');
+    setEmail('john@wildlife.com');
+    setPassword('Wildlife@123');
   };
 
   return (
@@ -40,15 +45,15 @@ function Login() {
         <div className="absolute inset-0 bg-gradient-to-br from-forest-900/90 to-forest-800/80" />
         <div className="relative z-10 flex flex-col justify-center p-12 text-white">
           <div className="flex items-center space-x-3 mb-8">
-            <Shield className="w-12 h-12 text-forest-300" />
-            <h1 className="text-3xl font-display font-bold">Ranger Portal</h1>
+            <Trees className="w-12 h-12 text-forest-300" />
+            <h1 className="text-3xl font-display font-bold">Wildlife Watch</h1>
           </div>
           <h2 className="text-4xl font-bold mb-4">
-            Forest Ranger Dashboard
+            Welcome Back
           </h2>
           <p className="text-forest-200 text-lg">
-            Access the full monitoring system with real-time alerts, camera controls, 
-            human intrusion detection, and advanced analytics.
+            Sign in to access wildlife monitoring, safety alerts, 
+            and stay informed about animal activity in your area.
           </p>
           <div className="mt-12 space-y-4">
             <div className="flex items-center space-x-3">
@@ -61,13 +66,13 @@ function Login() {
               <div className="w-10 h-10 rounded-full bg-forest-700 flex items-center justify-center">
                 🚨
               </div>
-              <p className="text-forest-200">Human intrusion alerts</p>
+              <p className="text-forest-200">Safety alerts and notifications</p>
             </div>
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 rounded-full bg-forest-700 flex items-center justify-center">
-                📹
+                🦁
               </div>
-              <p className="text-forest-200">Camera health monitoring</p>
+              <p className="text-forest-200">Wildlife sighting updates</p>
             </div>
           </div>
         </div>
@@ -76,20 +81,11 @@ function Login() {
       {/* Right Panel - Login Form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-gray-50">
         <div className="w-full max-w-md">
-          {/* Back to Public */}
-          <Link 
-            to="/" 
-            className="inline-flex items-center gap-2 text-forest-600 hover:text-forest-700 mb-6 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Public Dashboard
-          </Link>
-
           {/* Mobile Logo */}
           <div className="lg:hidden text-center mb-8">
-            <Shield className="w-16 h-16 text-forest-600 mx-auto" />
+            <Trees className="w-16 h-16 text-forest-600 mx-auto" />
             <h1 className="text-2xl font-display font-bold text-gray-900 mt-2">
-              Ranger Portal
+              Wildlife Watch
             </h1>
           </div>
 
@@ -99,8 +95,8 @@ function Login() {
                 <Shield className="w-6 h-6 text-forest-600" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-gray-900">Ranger Login</h2>
-                <p className="text-gray-500 text-sm">Authorized personnel only</p>
+                <h2 className="text-2xl font-bold text-gray-900">Sign In</h2>
+                <p className="text-gray-500 text-sm">Access your account</p>
               </div>
             </div>
 
@@ -112,11 +108,11 @@ function Login() {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <Input
-                label="Email"
-                type="email"
+                label="Email or Username"
+                type="text"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="ranger@wildlife.gov"
+                placeholder="john@wildlife.com"
                 leftIcon={<Mail className="w-5 h-5" />}
                 required
               />
@@ -149,12 +145,21 @@ function Login() {
               </Button>
             </form>
 
+            <div className="mt-6 text-center">
+              <p className="text-gray-600 text-sm">
+                Don't have an account?{' '}
+                <Link to="/signup" className="text-forest-600 hover:text-forest-700 font-medium">
+                  Sign Up
+                </Link>
+              </p>
+            </div>
+
             {/* Demo Credentials */}
             <div className="mt-6 p-4 bg-forest-50 rounded-lg border border-forest-200">
-              <p className="text-sm font-medium text-forest-800 mb-2">Demo Credentials:</p>
+              <p className="text-sm font-medium text-forest-800 mb-2">Demo Ranger Credentials:</p>
               <div className="text-sm text-forest-700 space-y-1">
-                <p><strong>Email:</strong> ranger@wildlife.gov</p>
-                <p><strong>Password:</strong> demo123</p>
+                <p><strong>Email:</strong> john@wildlife.com</p>
+                <p><strong>Password:</strong> Wildlife@123</p>
               </div>
               <Button
                 variant="secondary"
@@ -166,12 +171,6 @@ function Login() {
               </Button>
             </div>
           </div>
-
-          {/* Security Notice */}
-          <p className="text-center text-gray-500 text-sm mt-6">
-            🔒 This portal is for authorized forest department personnel only.
-            Unauthorized access is prohibited.
-          </p>
         </div>
       </div>
     </div>
