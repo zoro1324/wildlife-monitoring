@@ -20,6 +20,7 @@ import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
 import DeviceSimulator from './pages/DeviceSimulator';
 import MyDevices from './pages/MyDevices';
+import HomeLocation from './pages/HomeLocation';
 
 // Landing page component
 function LandingPage() {
@@ -125,6 +126,7 @@ function AppRoutes() {
         <Route index element={<UserDashboard />} />
         <Route path="alerts" element={<AlertsCenter />} />
         <Route path="my-devices" element={<MyDevices />} />
+        <Route path="home-location" element={<HomeLocation />} />
       </Route>
       
       {/* Ranger Routes - Login required */}

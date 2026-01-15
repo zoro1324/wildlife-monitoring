@@ -4,6 +4,7 @@ from .views import (
     LoginView,
     LogoutView,
     UserProfileView,
+    UserDevicesView,
     DeviceListView,
     DeviceRegisterView,
     DeviceDetailView,
@@ -19,6 +20,9 @@ urlpatterns = [
     path("auth/login/", LoginView.as_view(), name="login"),
     path("auth/logout/", LogoutView.as_view(), name="logout"),
     path("auth/profile/", UserProfileView.as_view(), name="user_profile"),
+    
+    # User's own devices
+    path("user/devices/", UserDevicesView.as_view(), name="user_devices"),
     
     # Device management endpoints
     path("device/", DeviceListView.as_view(), name="device_list"),

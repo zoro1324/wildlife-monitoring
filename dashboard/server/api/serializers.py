@@ -258,41 +258,51 @@ class CapturedImageSerializer(serializers.ModelSerializer):
     device_id = serializers.CharField(source='device.device_id', read_only=True)
     confidence_percentage = serializers.SerializerMethodField()
     image_url = serializers.SerializerMethodField()
+    annotated_image_url = serializers.SerializerMethodField()
     device_location = serializers.SerializerMethodField()
     
     class Meta:
         model = CapturedImage
-        fields = ['id', 'device', 'device_id', 'image_url', 'animal_type', 'confidence', 'confidence_percentage', 'timestamp', 'device_location']
+        fields = ['id', 'device', 'device_id', 'image_url', 'annotated_image_url', 'animal_type', 'confidence', 'confidence_percentage', 'timestamp', 'device_location']
         read_only_fields = ['id', 'timestamp']
     
     def get_confidence_percentage(self, obj):
         return f"{obj.confidence * 100:.2f}%"
     
+    def _build_url(self, request, file_field):
+        if not file_field:
+            return None
+        return request.build_absolute_uri(file_field.url) if request else file_field.url
+
     def get_image_url(self, obj):
-        """Return appropriate image based on user access level.
-        - Rangers and device owners: Original image
-        - Normal public users: Annotated/boxed image only
-        """
+        """Return original image (if allowed)."""
         request = self.context.get('request')
         user = request.user if request else None
-        
+
         # Check if user is ranger or device owner
         is_ranger = user and hasattr(user, 'profile') and user.profile.user_type == 'ranger'
         is_owner = user and obj.device.owned_by == user
-        
+
         if is_ranger or is_owner:
-            # Return original image for rangers and owners
-            if obj.image:
-                return request.build_absolute_uri(obj.image.url) if request else obj.image.url
-        else:
-            # Return annotated image for public users
-            if obj.annotated_image:
-                return request.build_absolute_uri(obj.annotated_image.url) if request else obj.annotated_image.url
-            elif obj.image:
-                # Fallback to original if no annotated image
-                return request.build_absolute_uri(obj.image.url) if request else obj.image.url
-        
+            return self._build_url(request, obj.image)
+        # Public users don't get original image
         return None
+
+    def get_annotated_image_url(self, obj):
+        """Return annotated (boxed) image; fallback to original if needed."""
+        request = self.context.get('request')
+        user = request.user if request else None
+
+        # Check if user is ranger or device owner
+        is_ranger = user and hasattr(user, 'profile') and user.profile.user_type == 'ranger'
+        is_owner = user and obj.device.owned_by == user
+
+        # Rangers/owners: prefer annotated if available; else original
+        if is_ranger or is_owner:
+            return self._build_url(request, obj.annotated_image) or self._build_url(request, obj.image)
+
+        # Public users: only annotated; fallback to original if no annotated
+        return self._build_url(request, obj.annotated_image) or self._build_url(request, obj.image)
     
     def get_device_location(self, obj):
         """Return device location only for rangers and device owners."""
@@ -328,3 +338,77 @@ class CapturedImageUploadSerializer(serializers.Serializer):
         if value.size > 10 * 1024 * 1024:
             raise serializers.ValidationError("Image size cannot exceed 10MB.")
         return value
+
+
+class UserProfileUpdateSerializer(serializers.Serializer):
+    """Serializer for updating user profile (home location)."""
+    home_lat = serializers.FloatField(required=False, allow_null=True)
+    home_lon = serializers.FloatField(required=False, allow_null=True)
+    mobile_number = serializers.CharField(max_length=15, required=False, allow_blank=True)
+    first_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    last_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    
+    def validate_mobile_number(self, value):
+        if value:
+            if not re.match(r"^\+?[1-9]\d{1,14}$", value):
+                raise serializers.ValidationError(
+                    "Invalid mobile number format. Use international format (e.g., +1234567890)."
+                )
+            # Check if mobile number is already used by another user
+            user = self.context.get('user')
+            if UserProfile.objects.filter(mobile_number=value).exclude(user=user).exists():
+                raise serializers.ValidationError("Mobile number already registered.")
+        return value
+    
+    def update(self, instance, validated_data):
+        user = instance
+        profile = user.profile
+        
+        if 'first_name' in validated_data:
+            user.first_name = validated_data['first_name']
+        if 'last_name' in validated_data:
+            user.last_name = validated_data['last_name']
+        user.save()
+        
+        if 'home_lat' in validated_data:
+            profile.home_lat = validated_data['home_lat']
+        if 'home_lon' in validated_data:
+            profile.home_lon = validated_data['home_lon']
+        if 'mobile_number' in validated_data:
+            profile.mobile_number = validated_data['mobile_number'] or None
+        profile.save()
+        
+        return user
+
+
+class AddDeviceSerializer(serializers.Serializer):
+    """Serializer for adding a device to user's account."""
+    device_id = serializers.CharField(max_length=100)
+    name = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    lat = serializers.FloatField(required=False, allow_null=True)
+    lon = serializers.FloatField(required=False, allow_null=True)
+    
+    def validate_device_id(self, value):
+        # Check if device already exists and is owned by another user
+        try:
+            device = Device.objects.get(device_id=value)
+            if device.owned_by and device.owned_by != self.context.get('user'):
+                raise serializers.ValidationError("This device is already registered to another user.")
+        except Device.DoesNotExist:
+            pass  # Device will be created
+        return value
+    
+    def create(self, validated_data):
+        device_id = validated_data['device_id']
+        user = self.context.get('user')
+        
+        device, created = Device.objects.get_or_create(device_id=device_id)
+        device.owned_by = user
+        
+        if 'lat' in validated_data and validated_data['lat'] is not None:
+            device.lat = validated_data['lat']
+        if 'lon' in validated_data and validated_data['lon'] is not None:
+            device.lon = validated_data['lon']
+        
+        device.save()
+        return device, created

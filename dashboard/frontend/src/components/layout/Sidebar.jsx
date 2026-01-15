@@ -15,6 +15,7 @@ import {
   Users,
   Upload,
   Smartphone,
+  Home,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useApp } from '../../context/AppContext';
@@ -39,6 +40,7 @@ const publicNavItems = [
   { path: '/public', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { path: '/public/alerts', icon: Bell, label: 'Alerts', badge: true },
   { path: '/public/my-devices', icon: Smartphone, label: 'My Devices' },
+  { path: '/public/home-location', icon: Home, label: 'Home Location' },
 ];
 
 function Sidebar() {

@@ -67,10 +67,10 @@ function AlertsCenter() {
     setSelectedAlert(null);
   };
 
-  const handleViewOnMap = () => {
-    setSelectedAlert(null);
-    navigate('/ranger/map-tracking');
-  };
+      const handleViewOnMap = (targetLocation) => {
+        navigate('/map-tracking', { state: { targetLocation } });
+        setSelectedAlert(null);
+      };
 
   return (
     <div className="space-y-6 pb-16 lg:pb-0">
@@ -241,7 +241,14 @@ function AlertsCenter() {
                 <Button 
                   variant="outline" 
                   leftIcon={<MapPin className="w-4 h-4" />}
-                  onClick={handleViewOnMap}
+                  onClick={() => {
+                    const targetLocation = {
+                      lat: selectedAlert.location.lat,
+                      lng: selectedAlert.location.lng,
+                      label: `${selectedAlert.animalName || selectedAlert.animal || 'Detection'} @ ${selectedAlert.cameraId}`,
+                    };
+                    handleViewOnMap(targetLocation);
+                  }}
                 >
                   View on Map
                 </Button>

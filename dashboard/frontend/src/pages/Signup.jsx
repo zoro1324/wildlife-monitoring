@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Eye, EyeOff, Mail, Lock, User, Phone, MapPin, Shield, Trees, UserCircle } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, User, MapPin, Shield, Trees, UserCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { Button, Input } from '../components/ui';
+import { Button, Input, PhoneInput } from '../components/ui';
 
 function Signup() {
   const navigate = useNavigate();
@@ -214,13 +214,10 @@ function Signup() {
                 required
               />
 
-              <Input
+              <PhoneInput
                 label="Mobile Number"
-                type="tel"
                 value={formData.mobileNumber}
                 onChange={handleChange('mobileNumber')}
-                placeholder="+91 9876543210"
-                leftIcon={<Phone className="w-5 h-5" />}
                 helperText="For wildlife alerts in your area"
               />
 

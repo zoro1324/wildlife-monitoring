@@ -3,6 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+server/media/
+
+server/media/annoted_images/
+server/media/captured_images/
 # C extensions
 *.so
 .env/
