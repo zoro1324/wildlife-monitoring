@@ -506,3 +506,76 @@ class TestView(APIView):
             "message": "JWT Authentication is working!",
             "user": str(request.user)
         })
+
+
+class TestWhatsAppView(APIView):
+    """Test WhatsApp messaging via Twilio."""
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        """
+        Send a test WhatsApp message.
+        
+        Request body:
+        {
+            "phone_number": "+1234567890",  # Required: recipient phone number in international format
+            "message": "Test message"        # Optional: custom message (default: test message)
+        }
+        """
+        from .notifications import send_whatsapp_message, get_twilio_client
+        from django.conf import settings
+        
+        phone_number = request.data.get('phone_number')
+        custom_message = request.data.get('message')
+        
+        if not phone_number:
+            return Response(
+                {"error": "phone_number is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check Twilio configuration
+        client = get_twilio_client()
+        if not client:
+            return Response(
+                {
+                    "error": "Twilio is not configured",
+                    "details": "Please set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_WHATSAPP_NUMBER in your environment"
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+        
+        whatsapp_number = getattr(settings, 'TWILIO_WHATSAPP_NUMBER', None)
+        if not whatsapp_number:
+            return Response(
+                {"error": "TWILIO_WHATSAPP_NUMBER is not configured"},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+        
+        # Compose test message
+        message = custom_message or (
+            f"🧪 TEST MESSAGE from Wildlife Watch\n\n"
+            f"This is a test message to verify WhatsApp integration is working correctly.\n\n"
+            f"Sent by: {request.user.username}\n"
+            f"If you received this, your Twilio WhatsApp setup is working!"
+        )
+        
+        # Send the message
+        message_sid = send_whatsapp_message(phone_number, message)
+        
+        if message_sid:
+            return Response({
+                "success": True,
+                "message": "WhatsApp message sent successfully",
+                "message_sid": message_sid,
+                "sent_to": phone_number
+            })
+        else:
+            return Response(
+                {
+                    "success": False,
+                    "error": "Failed to send WhatsApp message",
+                    "details": "Check server logs for more information. Common issues: invalid phone number format, unverified recipient in Twilio sandbox."
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
