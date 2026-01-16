@@ -510,7 +510,7 @@ class TestView(APIView):
 
 class TestWhatsAppView(APIView):
     """Test WhatsApp messaging via Twilio."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     
     def post(self, request):
         """
@@ -556,7 +556,7 @@ class TestWhatsAppView(APIView):
         message = custom_message or (
             f"🧪 TEST MESSAGE from Wildlife Watch\n\n"
             f"This is a test message to verify WhatsApp integration is working correctly.\n\n"
-            f"Sent by: {request.user.username}\n"
+
             f"If you received this, your Twilio WhatsApp setup is working!"
         )
         
