@@ -33,11 +33,6 @@ function Login() {
     setIsLoading(false);
   };
 
-  const fillDemoCredentials = () => {
-    setEmail('john@wildlife.com');
-    setPassword('Wildlife@123');
-  };
-
   return (
     <div className="min-h-screen flex">
       {/* Left Panel - Image */}
@@ -152,23 +147,6 @@ function Login() {
                   Sign Up
                 </Link>
               </p>
-            </div>
-
-            {/* Demo Credentials */}
-            <div className="mt-6 p-4 bg-forest-50 rounded-lg border border-forest-200">
-              <p className="text-sm font-medium text-forest-800 mb-2">Demo Ranger Credentials:</p>
-              <div className="text-sm text-forest-700 space-y-1">
-                <p><strong>Email:</strong> john@wildlife.com</p>
-                <p><strong>Password:</strong> Wildlife@123</p>
-              </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                className="mt-3 w-full"
-                onClick={fillDemoCredentials}
-              >
-                Fill Demo Credentials
-              </Button>
             </div>
           </div>
         </div>
