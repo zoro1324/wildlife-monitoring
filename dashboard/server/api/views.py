@@ -579,3 +579,75 @@ class TestWhatsAppView(APIView):
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+class TestSMSView(APIView):
+    """Test SMS messaging via Twilio."""
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        """
+        Send a test SMS message.
+
+        Request body:
+        {
+            "phone_number": "+1234567890",  # Required: recipient phone number in international format
+            "message": "Test message"        # Optional: custom message (default: test message)
+        }
+        """
+        from .notifications import send_sms_message, get_twilio_client
+        from django.conf import settings
+
+        phone_number = request.data.get('phone_number')
+        custom_message = request.data.get('message')
+
+        if not phone_number:
+            return Response(
+                {"error": "phone_number is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Check Twilio configuration
+        client = get_twilio_client()
+        if not client:
+            return Response(
+                {
+                    "error": "Twilio is not configured",
+                    "details": "Please set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_PHONE_NUMBER in your environment"
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+
+        phone_number_from = getattr(settings, 'TWILIO_PHONE_NUMBER', None)
+        if not phone_number_from:
+            return Response(
+                {"error": "TWILIO_PHONE_NUMBER is not configured"},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+
+        # Compose test message
+        message = custom_message or (
+            f"🧪 TEST SMS from Wildlife Watch\n\n"
+            f"This is a test SMS to verify Twilio integration is working correctly.\n\n"
+            f"If you received this, your Twilio SMS setup is working!"
+        )
+
+        # Send the message
+        message_sid = send_sms_message(phone_number, message)
+
+        if message_sid:
+            return Response({
+                "success": True,
+                "message": "SMS sent successfully",
+                "message_sid": message_sid,
+                "sent_to": phone_number
+            })
+        else:
+            return Response(
+                {
+                    "success": False,
+                    "error": "Failed to send SMS",
+                    "details": "Check server logs for more information. Common issues: invalid phone number format, unverified recipient if using a Twilio trial account."
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

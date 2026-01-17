@@ -12,3 +12,4 @@ export { default as Settings } from './Settings';
 export { default as DeviceSimulator } from './DeviceSimulator';
 export { default as MyDevices } from './MyDevices';
 export { default as HomeLocation } from './HomeLocation';
+export { default as SMSTest } from './SMSTest';

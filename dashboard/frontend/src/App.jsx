@@ -21,6 +21,7 @@ import Settings from './pages/Settings';
 import DeviceSimulator from './pages/DeviceSimulator';
 import MyDevices from './pages/MyDevices';
 import HomeLocation from './pages/HomeLocation';
+import SMSTest from './pages/SMSTest';
 
 // Landing page component
 function LandingPage() {
@@ -142,6 +143,8 @@ function AppRoutes() {
         <Route path="analytics" element={<Analytics />} />
         <Route path="settings" element={<Settings />} />
         <Route path="device-simulator" element={<DeviceSimulator />} />
+        <Route path="sms-test" element={<SMSTest />} />
+        <Route path="whatsapp-test" element={<Navigate to="/ranger/sms-test" replace />} />
       </Route>
       
       {/* Redirect unknown paths */}

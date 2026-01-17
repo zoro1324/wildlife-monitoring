@@ -13,6 +13,7 @@ from .views import (
     CapturedImageListView,
     TestView,
     TestWhatsAppView,
+    TestSMSView,
 )
 
 urlpatterns = [
@@ -38,4 +39,5 @@ urlpatterns = [
     # Test endpoints
     path("test/", TestView.as_view(), name="test"),
     path("test/whatsapp/", TestWhatsAppView.as_view(), name="test_whatsapp"),
+    path("test/sms/", TestSMSView.as_view(), name="test_sms"),
 ]

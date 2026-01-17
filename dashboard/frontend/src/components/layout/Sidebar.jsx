@@ -16,6 +16,7 @@ import {
   Upload,
   Smartphone,
   Home,
+  MessageSquare,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useApp } from '../../context/AppContext';
@@ -32,6 +33,7 @@ const rangerNavItems = [
   { path: '/ranger/camera-health', icon: Camera, label: 'Camera Health' },
   { path: '/ranger/analytics', icon: BarChart3, label: 'Analytics' },
   { path: '/ranger/device-simulator', icon: Upload, label: 'Device Simulator' },
+  { path: '/ranger/sms-test', icon: MessageSquare, label: 'SMS Test' },
   { path: '/ranger/settings', icon: Settings, label: 'Settings' },
 ];
 

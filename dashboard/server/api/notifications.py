@@ -127,6 +127,40 @@ def send_whatsapp_message(to_number, message):
         return None
 
 
+def send_sms_message(to_number, message):
+    """
+    Send an SMS message using Twilio.
+    
+    Args:
+        to_number: Recipient's phone number in international format (e.g., +1234567890)
+        message: Message body to send
+    
+    Returns:
+        Message SID if successful, None otherwise
+    """
+    client = get_twilio_client()
+    if not client:
+        return None
+
+    try:
+        from_number = getattr(settings, 'TWILIO_PHONE_NUMBER', None)
+        if not from_number:
+            print("TWILIO_PHONE_NUMBER not configured")
+            return None
+
+        message_obj = client.messages.create(
+            body=message,
+            from_=from_number,
+            to=to_number
+        )
+
+        print(f"SMS sent to {to_number}: {message_obj.sid}")
+        return message_obj.sid
+    except Exception as e:
+        print(f"Error sending SMS to {to_number}: {e}")
+        return None
+
+
 def make_phone_call(to_number, message):
     """
     Make a phone call using Twilio with TwiML voice message.

@@ -386,6 +386,33 @@ export const testAPI = {
     }
     return response.json();
   },
+
+  /**
+    * Send a test SMS message (Twilio)
+   */
+  async sendSMSTest({ phone_number, message } = {}) {
+    const response = await apiRequest('/test/sms/', {
+      method: 'POST',
+      body: JSON.stringify({ phone_number, message }),
+    });
+
+    let data = null;
+    try {
+      data = await response.json();
+    } catch (err) {
+      data = null;
+    }
+
+    if (!response.ok) {
+      const errorMsg = data?.error || data?.details || data?.message || response.statusText || 'SMS test failed';
+      const error = new Error(errorMsg);
+      error.details = data;
+      error.status = response.status;
+      throw error;
+    }
+
+    return data;
+  },
 };
 
 export default {
