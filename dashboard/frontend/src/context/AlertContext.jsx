@@ -3,6 +3,7 @@ import { useApp } from './AppContext';
 
 const AlertContext = createContext(null);
 const READ_ALERTS_STORAGE_KEY = 'wildlife_read_alert_ids';
+const RESOLVED_ALERTS_STORAGE_KEY = 'wildlife_resolved_alert_ids';
 
 const loadReadAlertIds = () => {
   try {
@@ -15,8 +16,24 @@ const loadReadAlertIds = () => {
   }
 };
 
+const loadResolvedAlertIds = () => {
+  try {
+    const stored = localStorage.getItem(RESOLVED_ALERTS_STORAGE_KEY);
+    if (!stored) return new Set();
+    const parsed = JSON.parse(stored);
+    return new Set(Array.isArray(parsed) ? parsed : []);
+  } catch (err) {
+    return new Set();
+  }
+};
+
 // Generate alerts from detections
-const generateAlertsFromDetections = (detections, existingAlerts = [], readIds = new Set()) => {
+const generateAlertsFromDetections = (
+  detections,
+  existingAlerts = [],
+  readIds = new Set(),
+  resolvedIds = new Set()
+) => {
   // Create a map of existing alerts to preserve their state
   const existingAlertsMap = new Map();
   existingAlerts.forEach(alert => {
@@ -42,7 +59,7 @@ const generateAlertsFromDetections = (detections, existingAlerts = [], readIds =
         timestamp: detection.timestamp,
         // Preserve existing state or set defaults
         isRead: existingAlert?.isRead ?? readIds.has(alertId),
-        isResolved: existingAlert?.isResolved ?? false,
+        isResolved: existingAlert?.isResolved ?? resolvedIds.has(alertId),
         resolvedBy: existingAlert?.resolvedBy ?? null,
         resolvedAt: existingAlert?.resolvedAt ?? null,
         location: detection.location,
@@ -62,9 +79,14 @@ export function AlertProvider({ children }) {
   const [notifications, setNotifications] = useState([]);
   const alertsRef = useRef([]);
   const readAlertIdsRef = useRef(loadReadAlertIds());
+  const resolvedAlertIdsRef = useRef(loadResolvedAlertIds());
 
   const persistReadAlertIds = useCallback((idsSet) => {
     localStorage.setItem(READ_ALERTS_STORAGE_KEY, JSON.stringify(Array.from(idsSet)));
+  }, []);
+
+  const persistResolvedAlertIds = useCallback((idsSet) => {
+    localStorage.setItem(RESOLVED_ALERTS_STORAGE_KEY, JSON.stringify(Array.from(idsSet)));
   }, []);
 
   // Update alerts when detections change, preserving state
@@ -73,7 +95,8 @@ export function AlertProvider({ children }) {
       const generatedAlerts = generateAlertsFromDetections(
         detections,
         alertsRef.current,
-        readAlertIdsRef.current
+        readAlertIdsRef.current,
+        resolvedAlertIdsRef.current
       );
 
       const currentIds = new Set(generatedAlerts.map((alert) => alert.id));
@@ -83,15 +106,19 @@ export function AlertProvider({ children }) {
       readAlertIdsRef.current = prunedReadIds;
       persistReadAlertIds(prunedReadIds);
 
+      const prunedResolvedIds = new Set(
+        Array.from(resolvedAlertIdsRef.current).filter((id) => currentIds.has(id))
+      );
+      resolvedAlertIdsRef.current = prunedResolvedIds;
+      persistResolvedAlertIds(prunedResolvedIds);
+
       setAlerts(generatedAlerts);
       alertsRef.current = generatedAlerts;
     } else {
       setAlerts([]);
       alertsRef.current = [];
-      readAlertIdsRef.current = new Set();
-      persistReadAlertIds(readAlertIdsRef.current);
     }
-  }, [detections, persistReadAlertIds]);
+  }, [detections, persistReadAlertIds, persistResolvedAlertIds]);
 
   const unreadCount = alerts.filter((a) => !a.isRead).length;
   const unresolvedCount = alerts.filter((a) => !a.isResolved).length;
@@ -126,9 +153,11 @@ export function AlertProvider({ children }) {
           : alert
       );
       alertsRef.current = updated;
+      resolvedAlertIdsRef.current.add(alertId);
+      persistResolvedAlertIds(resolvedAlertIdsRef.current);
       return updated;
     });
-  }, []);
+  }, [persistResolvedAlertIds]);
 
   const addNotification = useCallback((notification) => {
     const id = Date.now().toString();
