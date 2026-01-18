@@ -2,11 +2,13 @@ import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, CheckCircle, AlertTriangle, AlertCircle, Camera, Clock, MapPin, Check, ChevronRight, X } from 'lucide-react';
 import { useAlerts } from '../context/AlertContext';
+import { useAuth } from '../context/AuthContext';
 import { Card, Badge, Button, Select, EmptyState, Modal } from '../components/ui';
 import { getRelativeTime, cn, getAnimalIcon, formatSmartDate, formatConfidence } from '../utils/helpers';
 
 function AlertsCenter() {
   const navigate = useNavigate();
+  const { isRanger } = useAuth();
   const { alerts, markAsRead, resolveAlert, markAllAsRead, unreadCount } = useAlerts();
   const [filter, setFilter] = useState('all');
   const [severityFilter, setSeverityFilter] = useState('all');
@@ -73,10 +75,11 @@ function AlertsCenter() {
     setSelectedAlert(null);
   };
 
-      const handleViewOnMap = (targetLocation) => {
-        navigate('/map-tracking', { state: { targetLocation } });
-        setSelectedAlert(null);
-      };
+  const handleViewOnMap = (targetLocation) => {
+    if (!isRanger) return;
+    navigate('/ranger/map-tracking', { state: { targetLocation } });
+    setSelectedAlert(null);
+  };
 
   return (
     <div className="space-y-6 pb-16 lg:pb-0">
@@ -147,7 +150,9 @@ function AlertsCenter() {
                           <div className="flex flex-wrap items-center gap-4 mt-3 text-sm text-gray-500">
                             <div className="flex items-center"><Clock className="w-4 h-4 mr-1" />{getRelativeTime(alert.timestamp)}</div>
                             {alert.cameraId && <div className="flex items-center"><Camera className="w-4 h-4 mr-1" />{alert.cameraId}</div>}
-                            {alert.location && <div className="flex items-center"><MapPin className="w-4 h-4 mr-1" />View on map</div>}
+                            {isRanger && alert.location && !alert.locationHidden && (
+                              <div className="flex items-center"><MapPin className="w-4 h-4 mr-1" />View on map</div>
+                            )}
                           </div>
                           {!alert.isResolved && (
                             <div className="flex items-center justify-end mt-3 pt-3 border-t border-gray-200/50">
@@ -243,7 +248,7 @@ function AlertsCenter() {
 
             {/* Actions */}
             <div className="flex justify-end gap-2 pt-4 border-t">
-              {selectedAlert.location && !selectedAlert.locationHidden && (
+              {isRanger && selectedAlert.location && !selectedAlert.locationHidden && (
                 <Button 
                   variant="outline" 
                   leftIcon={<MapPin className="w-4 h-4" />}
