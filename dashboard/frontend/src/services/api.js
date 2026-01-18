@@ -366,10 +366,26 @@ export const detectionsAPI = {
       body: formData,
     });
 
-    if (!response.ok) {
-      throw new Error('Failed to upload image');
+    let data = null;
+    try {
+      data = await response.json();
+    } catch (err) {
+      data = null;
     }
-    return response.json();
+
+    if (!response.ok) {
+      const errorMsg =
+        data?.error ||
+        data?.errors?.image?.[0] ||
+        data?.errors?.device_id?.[0] ||
+        data?.message ||
+        'Failed to upload image';
+      const error = new Error(errorMsg);
+      error.details = data;
+      error.status = response.status;
+      throw error;
+    }
+    return data;
   },
 };
 

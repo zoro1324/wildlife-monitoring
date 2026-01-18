@@ -1,3 +1,4 @@
+<!-- markdownlint-disable MD031 MD032 MD040 MD058 MD060 -->
 # Wildlife Monitoring API Documentation
 
 ## Overview

@@ -13,11 +13,13 @@ const transformDevice = (device) => ({
   battery: 85, // Default battery level
   signalStrength: 90, // Default signal
   solarCharging: true,
+  solarStatus: 'charging',
   location: device.location?.visible 
     ? { lat: device.location.lat || 0, lng: device.location.lon || 0 }
     : null, // Hide location for public users
   locationHidden: !device.location?.visible,
   lastSeen: device.updated_at || new Date().toISOString(),
+  lastActive: device.updated_at || new Date().toISOString(),
   owner: device.owned_by_username,
 });
 

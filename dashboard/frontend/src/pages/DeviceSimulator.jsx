@@ -1,7 +1,7 @@
-import { useState, useRef } from 'react';
-import { Upload, Camera, Send, CheckCircle, AlertCircle, Image, Trash2, RefreshCw } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Upload, Camera, Send, CheckCircle, AlertCircle, Image, Trash2, RefreshCw, Video } from 'lucide-react';
 import { Card, Button, Select, Badge } from '../components/ui';
-import { detectionsAPI, devicesAPI } from '../services/api';
+import { detectionsAPI } from '../services/api';
 import { useApp } from '../context/AppContext';
 
 function DeviceSimulator() {
@@ -12,7 +12,19 @@ function DeviceSimulator() {
   const [isUploading, setIsUploading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const [captureMode, setCaptureMode] = useState('upload');
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
   const fileInputRef = useRef(null);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
+
+  useEffect(() => {
+    if (!selectedDevice && cameras.length === 1) {
+      setSelectedDevice(cameras[0].id);
+    }
+  }, [cameras, selectedDevice]);
 
   const deviceOptions = [
     { value: '', label: 'Select a device...' },
@@ -60,12 +72,89 @@ function DeviceSimulator() {
     }
   };
 
+  const startCamera = async () => {
+    setError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+      setIsCameraActive(true);
+    } catch (err) {
+      setError('Unable to access camera. Please allow camera permission.');
+      setIsCameraActive(false);
+    }
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setIsCameraActive(false);
+  };
+
+  const handleCaptureFrame = async () => {
+    if (!videoRef.current || !canvasRef.current) return;
+    setIsCapturing(true);
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    canvas.width = video.videoWidth || 1280;
+    canvas.height = video.videoHeight || 720;
+    const context = canvas.getContext('2d');
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        setError('Failed to capture image');
+        setIsCapturing(false);
+        return;
+      }
+      const file = new File([blob], `capture-${Date.now()}.jpg`, { type: 'image/jpeg' });
+      setSelectedImage(file);
+      setImagePreview(URL.createObjectURL(blob));
+      setResult(null);
+      setError(null);
+      stopCamera();
+      setIsCapturing(false);
+    }, 'image/jpeg', 0.92);
+  };
+
+  useEffect(() => {
+    return () => {
+      stopCamera();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (captureMode === 'live') {
+      startCamera();
+    } else {
+      stopCamera();
+    }
+  }, [captureMode]);
+
   const handleUpload = async () => {
     if (!selectedDevice) {
       setError('Please select a device');
       return;
     }
-    if (!selectedImage) {
+    let imageFile = selectedImage;
+    if (!imageFile && imagePreview) {
+      try {
+        const blob = await fetch(imagePreview).then((res) => res.blob());
+        imageFile = new File([blob], `capture-${Date.now()}.jpg`, { type: blob.type || 'image/jpeg' });
+        setSelectedImage(imageFile);
+      } catch (err) {
+        setError('Please select an image');
+        return;
+      }
+    }
+    if (!imageFile) {
       setError('Please select an image');
       return;
     }
@@ -75,7 +164,7 @@ function DeviceSimulator() {
     setResult(null);
 
     try {
-      const response = await detectionsAPI.uploadImage(selectedDevice, selectedImage);
+      const response = await detectionsAPI.uploadImage(selectedDevice, imageFile);
       setResult(response);
       
       // Refresh data to show new detection
@@ -87,6 +176,7 @@ function DeviceSimulator() {
       setIsUploading(false);
     }
   };
+
 
   const getRiskBadge = (animalType) => {
     const dangerAnimals = ['Tiger', 'Lion', 'Leopord', 'Human'];
@@ -144,37 +234,117 @@ function DeviceSimulator() {
               options={deviceOptions}
             />
 
-            {/* Image Upload */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Button
+                variant={captureMode === 'upload' ? 'primary' : 'outline'}
+                onClick={() => setCaptureMode('upload')}
+                leftIcon={<Upload className="w-4 h-4" />}
+              >
+                Upload Image
+              </Button>
+              <Button
+                variant={captureMode === 'live' ? 'primary' : 'outline'}
+                onClick={() => setCaptureMode('live')}
+                leftIcon={<Video className="w-4 h-4" />}
+              >
+                Live Capture
+              </Button>
+            </div>
+
+            {/* Image Upload / Live Capture */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Capture Image
               </label>
-              
-              {!imagePreview ? (
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-forest-500 hover:bg-forest-50 transition-colors"
-                >
-                  <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600 font-medium">Click to upload image</p>
-                  <p className="text-gray-400 text-sm mt-1">PNG, JPG up to 10MB</p>
-                </div>
-              ) : (
-                <div className="relative">
-                  <img
-                    src={imagePreview}
-                    alt="Preview"
-                    className="w-full h-64 object-cover rounded-xl"
-                  />
-                  <button
-                    onClick={handleClearImage}
-                    className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+
+              {captureMode === 'upload' ? (
+                !imagePreview ? (
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-forest-500 hover:bg-forest-50 transition-colors"
                   >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                  <div className="absolute bottom-2 left-2 bg-black/60 text-white px-3 py-1 rounded-lg text-sm">
-                    {selectedImage?.name}
+                    <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600 font-medium">Click to upload image</p>
+                    <p className="text-gray-400 text-sm mt-1">PNG, JPG up to 10MB</p>
                   </div>
+                ) : (
+                  <div className="relative">
+                    <img
+                      src={imagePreview}
+                      alt="Preview"
+                      className="w-full h-64 object-cover rounded-xl"
+                    />
+                    <button
+                      onClick={handleClearImage}
+                      className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                    <div className="absolute bottom-2 left-2 bg-black/60 text-white px-3 py-1 rounded-lg text-sm">
+                      {selectedImage?.name}
+                    </div>
+                  </div>
+                )
+              ) : (
+                <div className="space-y-3">
+                  {imagePreview ? (
+                    <div className="rounded-xl overflow-hidden border border-gray-200">
+                      <img src={imagePreview} alt="Captured" className="w-full h-64 object-cover" />
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <video
+                        ref={videoRef}
+                        className="w-full h-64 object-cover rounded-xl bg-black"
+                        muted
+                        playsInline
+                      />
+                      {!isCameraActive && (
+                        <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                          Camera is off
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <div className="flex flex-wrap gap-3">
+                    <Button
+                      variant="outline"
+                      onClick={isCameraActive ? stopCamera : startCamera}
+                      disabled={!!imagePreview}
+                    >
+                      {isCameraActive ? 'Stop Camera' : 'Start Camera'}
+                    </Button>
+                    <Button
+                      variant="primary"
+                      onClick={handleCaptureFrame}
+                      isLoading={isCapturing}
+                      disabled={!isCameraActive}
+                      leftIcon={<Camera className="w-4 h-4" />}
+                    >
+                      Capture Frame
+                    </Button>
+                    {imagePreview && (
+                      <>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            handleClearImage();
+                            startCamera();
+                          }}
+                        >
+                          Retake
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          onClick={handleClearImage}
+                          leftIcon={<Trash2 className="w-4 h-4" />}
+                        >
+                          Clear Capture
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                  <canvas ref={canvasRef} className="hidden" />
                 </div>
               )}
               
@@ -200,7 +370,7 @@ function DeviceSimulator() {
               className="w-full"
               onClick={handleUpload}
               isLoading={isUploading}
-              disabled={!selectedDevice || !selectedImage}
+              disabled={!selectedDevice || (!selectedImage && !imagePreview)}
               leftIcon={<Send className="w-4 h-4" />}
             >
               {isUploading ? 'Processing...' : 'Send to Server'}

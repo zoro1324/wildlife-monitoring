@@ -6,7 +6,7 @@ import { BatteryIndicator, SignalIndicator } from '../components/ui/StatusIndica
 import { cn, formatSmartDate } from '../utils/helpers';
 
 function CameraHealth() {
-  const { cameras, refreshData, isLoading } = useApp();
+  const { cameras, refreshData, isLoadingData } = useApp();
   const [viewFilter, setViewFilter] = useState('all');
   const [sortBy, setSortBy] = useState('name');
 
@@ -51,7 +51,7 @@ function CameraHealth() {
           <h1 className="text-2xl md:text-3xl font-display font-bold text-gray-900">Camera Health</h1>
           <p className="text-gray-600 mt-1">Monitor and manage camera network status</p>
         </div>
-        <Button variant="primary" onClick={refreshData} isLoading={isLoading} leftIcon={<RefreshCw className="w-4 h-4" />}>
+        <Button variant="primary" onClick={refreshData} isLoading={isLoadingData} leftIcon={<RefreshCw className="w-4 h-4" />}>
           Refresh Status
         </Button>
       </div>
@@ -124,6 +124,7 @@ function CameraCard({ camera }) {
   const hasBatteryIssue = camera.battery < 30;
   const hasSignalIssue = camera.signalStrength < 30;
   const hasIssue = !isOnline || hasBatteryIssue || hasSignalIssue;
+  const lastActive = camera.lastActive || camera.lastSeen;
 
   return (
     <Card hoverable className={cn(
@@ -191,7 +192,9 @@ function CameraCard({ camera }) {
             <Clock className="w-4 h-4 mr-2" />
             Last Active
           </span>
-          <span className="text-gray-900">{formatSmartDate(camera.lastActive)}</span>
+          <span className="text-gray-900">
+            {lastActive ? formatSmartDate(lastActive) : 'Unknown'}
+          </span>
         </div>
       </div>
 

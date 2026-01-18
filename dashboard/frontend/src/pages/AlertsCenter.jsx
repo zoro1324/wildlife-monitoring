@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, CheckCircle, AlertTriangle, AlertCircle, Camera, Clock, MapPin, Check, ChevronRight, X } from 'lucide-react';
 import { useAlerts } from '../context/AlertContext';
@@ -11,6 +11,12 @@ function AlertsCenter() {
   const [filter, setFilter] = useState('all');
   const [severityFilter, setSeverityFilter] = useState('all');
   const [selectedAlert, setSelectedAlert] = useState(null);
+
+  useEffect(() => {
+    if (unreadCount > 0) {
+      markAllAsRead();
+    }
+  }, [markAllAsRead, unreadCount]);
 
   const filterOptions = [
     { value: 'all', label: 'All Alerts' },
