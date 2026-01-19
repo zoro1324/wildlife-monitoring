@@ -28,12 +28,15 @@ const transformDetection = (detection) => {
   // Map backend animal types to frontend format
   const animalTypeMap = {
     'Bear': 'bear',
+    'Bison': 'bison',
     'Bision': 'bison',
     'Elephant': 'elephant',
     'Human': 'human',
+    'Leopard': 'leopard',
     'Leopord': 'leopard',
     'Lion': 'lion',
     'Tiger': 'tiger',
+    'Boar': 'boar',
     'Wild Boar': 'boar',
   };
 

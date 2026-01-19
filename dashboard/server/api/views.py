@@ -296,7 +296,7 @@ class CapturedImageView(APIView):
         """Lazy load YOLO model."""
         if self._model is None:
             from ultralytics import YOLO
-            model_path = Path(__file__).resolve().parent.parent.parent.parent / "best_models" / "best.pt"
+            model_path = Path(__file__).resolve().parent.parent.parent.parent / "best_models" / "best-20-e.pt"
             
             if not model_path.exists():
                 raise FileNotFoundError(f"YOLO model not found at {model_path}")
@@ -374,6 +374,23 @@ class CapturedImageView(APIView):
                     }
                 }, status=status.HTTP_200_OK)
             
+            # Normalize animal type to match class labels
+            animal_type_map = {
+                "bision": "Bison",
+                "bison": "Bison",
+                "boar": "Boar",
+                "wild boar": "Boar",
+                "leopord": "Leopard",
+                "leopard": "Leopard",
+                "bear": "Bear",
+                "elephant": "Elephant",
+                "human": "Human",
+                "lion": "Lion",
+                "tiger": "Tiger",
+            }
+            normalized_key = str(animal_type).strip().lower()
+            animal_type = animal_type_map.get(normalized_key, animal_type)
+
             # Validate animal type
             valid_animals = [choice[0] for choice in CapturedImage.ANIMAL_CHOICES]
             if animal_type not in valid_animals:

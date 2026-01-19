@@ -48,7 +48,7 @@ def haversine_distance(lat1, lon1, lat2, lon2):
     return R * c
 
 
-def get_users_within_radius(device_lat, device_lon, radius_km=10):
+def get_users_within_radius(device_lat, device_lon, radius_km=10, user_type=None):
     """
     Get all users whose home location is within the specified radius of the device.
     
@@ -70,6 +70,9 @@ def get_users_within_radius(device_lat, device_lon, radius_km=10):
         home_lon__isnull=False,
         mobile_number__isnull=False
     ).exclude(mobile_number='')
+
+    if user_type:
+        profiles = profiles.filter(user_type=user_type)
     
     for profile in profiles:
         distance = haversine_distance(
@@ -233,16 +236,19 @@ def send_wildlife_alerts(device, animal_type, confidence, image_url=None):
             if image_url:
                 alert_message += f"\n\nImage: {image_url}"
             
-            # Get users within 10km radius
-            nearby_users = get_users_within_radius(device_lat, device_lon, radius_km=10)
+            # Get rangers within 50km radius and public users within 10km radius
+            nearby_rangers = get_users_within_radius(device_lat, device_lon, radius_km=50, user_type='ranger')
+            nearby_public = get_users_within_radius(device_lat, device_lon, radius_km=10, user_type='public')
             
-            print(f"Found {len(nearby_users)} users within 10km radius of device {device.device_id}")
+            print(
+                f"Found {len(nearby_rangers)} rangers within 50km and {len(nearby_public)} public users within 10km of device {device.device_id}"
+            )
             
             # Track device owner to avoid duplicate WhatsApp message
             device_owner_id = device.owned_by.id if device.owned_by else None
             
             # Send WhatsApp messages to nearby users
-            for user_info in nearby_users:
+            for user_info in nearby_rangers + nearby_public:
                 user = user_info['user']
                 mobile = user_info['mobile_number']
                 distance = user_info['distance']

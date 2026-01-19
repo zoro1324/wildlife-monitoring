@@ -81,12 +81,16 @@ class CapturedImage(models.Model):
     """
     ANIMAL_CHOICES = [
         ('Bear', 'Bear'),
-        ('Bision', 'Bision'),
+        ('Bison', 'Bison'),
         ('Elephant', 'Elephant'),
         ('Human', 'Human'),
-        ('Leopord', 'Leopord'),
+        ('Leopard', 'Leopard'),
         ('Lion', 'Lion'),
         ('Tiger', 'Tiger'),
+        ('Boar', 'Boar'),
+        # Legacy spellings (kept for existing records)
+        ('Bision', 'Bision'),
+        ('Leopord', 'Leopord'),
         ('Wild Boar', 'Wild Boar'),
     ]
     
