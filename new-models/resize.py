@@ -5,7 +5,7 @@ from PIL import Image
 
 
 DATASET_ROOT = Path(__file__).parent / "animals"
-MAX_SIZE = 640  # Target max dimension for YOLO img size
+MAX_SIZE = 360  # Target max dimension for YOLO img size
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tif", ".tiff"}
 
 

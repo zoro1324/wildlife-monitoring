@@ -32,36 +32,52 @@ function Signup() {
 
     // Validation
     if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match');
+      const errorMsg = 'Passwords do not match';
+      setError(errorMsg);
+      alert('❌ Registration Error\n\n' + errorMsg);
       return;
     }
 
     if (formData.password.length < 8) {
-      setError('Password must be at least 8 characters');
+      const errorMsg = 'Password must be at least 8 characters';
+      setError(errorMsg);
+      alert('❌ Registration Error\n\n' + errorMsg);
       return;
     }
 
     setIsLoading(true);
 
-    const result = await signup({
-      username: formData.username,
-      email: formData.email,
-      password: formData.password,
-      first_name: formData.firstName,
-      last_name: formData.lastName,
-      mobile_number: formData.mobileNumber,
-      user_type: formData.userType,
-    });
+    try {
+      const result = await signup({
+        username: formData.username,
+        email: formData.email,
+        password: formData.password,
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        mobile_number: formData.mobileNumber,
+        user_type: formData.userType,
+      });
 
-    if (result.success) {
-      if (formData.userType === 'ranger') {
-        navigate('/ranger');
+      if (result.success) {
+        if (formData.userType === 'ranger') {
+          navigate('/ranger');
+        } else {
+          navigate('/public');
+        }
       } else {
-        navigate('/public');
+        const errorMsg = result.error || 'Registration failed';
+        setError(errorMsg);
+        // Show error in alert popup
+        alert('❌ Registration Failed\n\n' + errorMsg);
+        console.error('Signup error:', errorMsg);
       }
-    } else {
-      setError(result.error || 'Registration failed');
+    } catch (error) {
+      const errorMsg = error.message || 'An unexpected error occurred';
+      setError(errorMsg);
+      alert('❌ Registration Error\n\n' + errorMsg);
+      console.error('Signup exception:', error);
     }
+    
     setIsLoading(false);
   };
 

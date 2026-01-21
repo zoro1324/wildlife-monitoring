@@ -35,12 +35,18 @@ class SignupView(APIView):
     permission_classes = [AllowAny]
     
     def post(self, request):
+        print("\n=== SIGNUP REQUEST ===")
+        print(f"Request Data: {request.data}")
+        
         serializer = SignupSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
             
             # Generate tokens
             refresh = RefreshToken.for_user(user)
+            
+            print(f"✓ User '{user.username}' registered successfully")
+            print("=====================\n")
             
             return Response({
                 "message": "User registered successfully.",
@@ -50,6 +56,14 @@ class SignupView(APIView):
                     "access": str(refresh.access_token),
                 }
             }, status=status.HTTP_201_CREATED)
+        
+        # Log errors to terminal
+        print("✗ Signup validation failed:")
+        for field, errors in serializer.errors.items():
+            error_msgs = errors if isinstance(errors, list) else [errors]
+            for error in error_msgs:
+                print(f"  - {field}: {error}")
+        print("=====================\n")
         
         return Response({"errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
