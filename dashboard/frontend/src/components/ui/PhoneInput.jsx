@@ -71,14 +71,16 @@ function PhoneInput({
   const selectedCountry = countryCodes.find(c => c.code === countryCode) || countryCodes[0];
 
   const handleCountryChange = (newCode) => {
-    const newValue = `${newCode} ${number}`.trim();
+    // Combine without space for international format
+    const newValue = number ? `${newCode}${number}` : newCode;
     onChange?.({ target: { value: newValue } });
     setIsDropdownOpen(false);
   };
 
   const handleNumberChange = (e) => {
     const newNumber = e.target.value.replace(/[^\d]/g, ''); // Only allow digits
-    const newValue = `${countryCode} ${newNumber}`.trim();
+    // Combine without space for international format
+    const newValue = newNumber ? `${countryCode}${newNumber}` : '';
     onChange?.({ target: { value: newValue } });
   };
 
