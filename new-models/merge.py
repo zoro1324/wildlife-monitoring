@@ -16,7 +16,7 @@ target_root = "dataset"
 class_names = [
     "Bear",
     "Bison",
-    "Boar",
+    "boar",
     "Elephant",
     "Human",
     "Leopard",
@@ -32,6 +32,7 @@ classes = {
 split_map = {
     "train": "train",
     "val": "val",
+    "test": "test",
 }
 
 # Create directory structure for YOLO dataset
@@ -95,6 +96,7 @@ data_yaml = {
     "path": os.path.abspath(target_root),
     "train": "images/train",
     "val": "images/val",
+    "test": "images/test",
     "nc": len(class_names),
     "names": {idx: name for name, meta in classes.items() for idx in [meta["id"]]}
 }
@@ -106,5 +108,7 @@ print(f"\nCreated data.yaml with {len(class_names)} classes")
 print(f"Dataset structure:")
 print(f"  - {target_root}/images/train/")
 print(f"  - {target_root}/images/val/")
+print(f"  - {target_root}/images/test/")
 print(f"  - {target_root}/labels/train/")
 print(f"  - {target_root}/labels/val/")
+print(f"  - {target_root}/labels/test/")

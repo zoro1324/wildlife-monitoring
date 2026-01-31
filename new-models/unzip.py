@@ -11,9 +11,9 @@ ZIPS_DIR = SCRIPT_DIR / "zips"
 OUTPUT_ROOT = SCRIPT_DIR / "animals"  # Output folder per-zip will live here
 
 
-def extract_and_organize_yolo_data(zip_path, output_folder, train_size=1200, val_size=300):
+def extract_and_organize_yolo_data(zip_path, output_folder, train_size=1000, val_size=300, test_size=200):
     """
-    Extract YOLO data from zip file and reorganize into train/val folders.
+    Extract YOLO data from zip file and reorganize into train/val/test folders.
     
     Parameters:
     -----------
@@ -22,9 +22,11 @@ def extract_and_organize_yolo_data(zip_path, output_folder, train_size=1200, val
     output_folder : str
         Name/path of the output folder to create
     train_size : int
-        Number of images for training (default: 1200)
+        Number of images for training (default: 1000)
     val_size : int
         Number of images for validation (default: 300)
+    test_size : int
+        Number of images for testing (default: 200)
     """
     
     # Convert to absolute path if relative
@@ -50,11 +52,15 @@ def extract_and_organize_yolo_data(zip_path, output_folder, train_size=1200, val
     train_labels_dir = output_path / "train" / "labels"
     val_images_dir = output_path / "val" / "images"
     val_labels_dir = output_path / "val" / "labels"
+    test_images_dir = output_path / "test" / "images"
+    test_labels_dir = output_path / "test" / "labels"
     
     train_images_dir.mkdir(parents=True, exist_ok=True)
     train_labels_dir.mkdir(parents=True, exist_ok=True)
     val_images_dir.mkdir(parents=True, exist_ok=True)
     val_labels_dir.mkdir(parents=True, exist_ok=True)
+    test_images_dir.mkdir(parents=True, exist_ok=True)
+    test_labels_dir.mkdir(parents=True, exist_ok=True)
     
     # Extract zip file to temporary directory
     extract_path = output_path / "temp_extract"
@@ -90,19 +96,6 @@ def extract_and_organize_yolo_data(zip_path, output_folder, train_size=1200, val
             f"Not enough images for training. Need at least {train_size}, but found {len(all_image_files)}"
         )
     
-    # Adjust val_size based on total available images
-    # If total images < 1500, use remaining images for validation
-    if len(all_image_files) < 1500:
-        adjusted_val_size = len(all_image_files) - train_size
-        print(f"Total images ({len(all_image_files)}) < 1500. Using {train_size} for train and {adjusted_val_size} for val")
-    else:
-        adjusted_val_size = val_size
-        total_needed = train_size + val_size
-        if len(all_image_files) < total_needed:
-            raise ValueError(
-                f"Not enough images. Need {total_needed}, but found {len(all_image_files)}"
-            )
-    
     # Create a mapping of image files to their corresponding label files
     image_label_pairs = []
     for img_path in all_image_files:
@@ -120,9 +113,10 @@ def extract_and_organize_yolo_data(zip_path, output_folder, train_size=1200, val
     image_label_pairs.sort(key=lambda x: x[0].name)
     random.shuffle(image_label_pairs)
     
-    # Split data: train (1200) and val (adjusted based on total images)
+    # Split data: train, val, test
     train_pairs = image_label_pairs[:train_size]
-    val_pairs = image_label_pairs[train_size:train_size + adjusted_val_size]
+    val_pairs = image_label_pairs[train_size:train_size + val_size]
+    test_pairs = image_label_pairs[train_size + val_size : train_size + val_size + test_size]
     
     print(f"\nCopying {len(train_pairs)} training samples...")
     # Copy training data
@@ -137,6 +131,13 @@ def extract_and_organize_yolo_data(zip_path, output_folder, train_size=1200, val
         shutil.copy2(img_path, val_images_dir / img_path.name)
         if label_path and label_path.exists():
             shutil.copy2(label_path, val_labels_dir / label_path.name)
+
+    print(f"Copying {len(test_pairs)} test samples...")
+    # Copy test data
+    for img_path, label_path in test_pairs:
+        shutil.copy2(img_path, test_images_dir / img_path.name)
+        if label_path and label_path.exists():
+            shutil.copy2(label_path, test_labels_dir / label_path.name)
     
     # Clean up temporary extraction directory
     print("Cleaning up temporary files...")
@@ -145,8 +146,10 @@ def extract_and_organize_yolo_data(zip_path, output_folder, train_size=1200, val
     print(f"\n✓ Successfully organized YOLO data!")
     print(f"├── Train: {len(list(train_images_dir.glob('*')))} images, "
           f"{len(list(train_labels_dir.glob('*')))} labels")
-    print(f"└── Val: {len(list(val_images_dir.glob('*')))} images, "
+    print(f"├── Val:   {len(list(val_images_dir.glob('*')))} images, "
           f"{len(list(val_labels_dir.glob('*')))} labels")
+    print(f"└── Test:  {len(list(test_images_dir.glob('*')))} images, "
+          f"{len(list(test_labels_dir.glob('*')))} labels")
     print(f"\nOutput directory: {output_path.absolute()}")
 
 
@@ -174,8 +177,9 @@ def main():
             extract_and_organize_yolo_data(
                 zip_path=zp,
                 output_folder=out_dir,
-                train_size=1200,
-                val_size=300
+                train_size=1000,
+                val_size=300,
+                test_size=200
             )
         except Exception as e:
             print(f"Error processing {zp.name}: {e}\n")
