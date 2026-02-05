@@ -4,7 +4,7 @@ from pathlib import Path
 from PIL import Image
 
 
-DATASET_ROOT = Path(__file__).parent / "animals"
+DATASET_ROOT = Path(__file__).parent / "dataset/images"
 MAX_SIZE = 360  # Target max dimension for YOLO img size
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tif", ".tiff"}
 

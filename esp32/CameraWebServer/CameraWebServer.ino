@@ -17,7 +17,7 @@ const char* ENDPOINT = "/api/device/capture/";
 const char* DEVICE_ID = "ESP32_CAM_001";
 
 // PIR input pin
-#define PIR_PIN 13
+#define PIR_PIN 12
 
 // Rate limit: minimum time between uploads (ms)
 const unsigned long MIN_UPLOAD_INTERVAL_MS = 10000; // 10 seconds

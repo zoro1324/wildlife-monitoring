@@ -1,11 +1,12 @@
 path: d:\wildlife-monitoring\new-models\dataset
 train: images/train
 val: images/val
+test: images/test
 nc: 8
 names:
   0: Bear
   1: Bison
-  2: Boar
+  2: boar
   3: Elephant
   4: Human
   5: Leopard
