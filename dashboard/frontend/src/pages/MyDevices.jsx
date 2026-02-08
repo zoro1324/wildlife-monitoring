@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Camera, MapPin, Clock, Activity, AlertTriangle, Eye, RefreshCw, Plus, Loader2, Trash2, Navigation, Settings } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
@@ -31,6 +32,7 @@ const DEFAULT_CALL_RULES = {
 function MyDevices() {
   const { cameras, detections, accessLevel, ownedDevicesCount, refreshData, isLoadingData } = useApp();
   const { isRanger } = useAuth();
+  const navigate = useNavigate();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [configCamera, setConfigCamera] = useState(null);
@@ -53,6 +55,11 @@ function MyDevices() {
   // Get detections for each camera
   const getDeviceDetections = (cameraId) => {
     return detections.filter(d => d.cameraId === cameraId);
+  };
+
+  const goToDetectionHistory = (cameraId) => {
+    const basePath = isRanger ? '/ranger' : '/public';
+    navigate(`${basePath}/detection-history?camera_id=${encodeURIComponent(cameraId)}`);
   };
 
   const handleRefresh = async () => {
@@ -286,7 +293,7 @@ function MyDevices() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {cameras.map((camera) => {
             const deviceDetections = getDeviceDetections(camera.id);
-            const recentDetections = deviceDetections.slice(0, 5);
+            const recentDetections = deviceDetections.slice(0, 2);
             const dangerCount = deviceDetections.filter(d => d.riskLevel === 'danger').length;
 
             return (
@@ -402,6 +409,15 @@ function MyDevices() {
                             </Badge>
                           </div>
                         ))}
+                        {deviceDetections.length > 2 && (
+                          <button
+                            type="button"
+                            onClick={() => goToDetectionHistory(camera.id)}
+                            className="w-full text-sm text-forest-700 font-medium py-2 rounded-lg border border-forest-100 bg-forest-50 hover:bg-forest-100 transition-colors"
+                          >
+                            All Detections
+                          </button>
+                        )}
                       </div>
                     </div>
                   )}
