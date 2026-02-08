@@ -1,4 +1,4 @@
-path: d:\wildlife-monitoring\new-models\dataset
+path: d:\wildlife-monitoring\models\dataset
 train: images/train
 val: images/val
 test: images/test
