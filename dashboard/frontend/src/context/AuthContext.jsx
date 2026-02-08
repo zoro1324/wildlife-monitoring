@@ -88,7 +88,7 @@ export function AuthProvider({ children }) {
               mobile_number: profile.mobile_number,
               home_lat: profile.home_lat,
               home_lon: profile.home_lon,
-              avatar: null,
+              avatar: profile.avatar || null,
             };
             setUser(userData);
             localStorage.setItem('wildlife_user', JSON.stringify(userData));
@@ -128,7 +128,7 @@ export function AuthProvider({ children }) {
         mobile_number: profile.mobile_number,
         home_lat: profile.home_lat,
         home_lon: profile.home_lon,
-        avatar: null,
+        avatar: profile.avatar || null,
       };
       
       setUser(userData);
@@ -164,7 +164,7 @@ export function AuthProvider({ children }) {
         mobile_number: profile.mobile_number,
         home_lat: profile.home_lat,
         home_lon: profile.home_lon,
-        avatar: null,
+        avatar: profile.avatar || null,
       };
       
       setUser(newUser);

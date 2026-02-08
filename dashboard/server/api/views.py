@@ -2,7 +2,7 @@ from rest_framework import status, generics
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404
@@ -50,7 +50,7 @@ class SignupView(APIView):
             
             return Response({
                 "message": "User registered successfully.",
-                "user": UserSerializer(user).data,
+                "user": UserSerializer(user, context={'request': request}).data,
                 "tokens": {
                     "refresh": str(refresh),
                     "access": str(refresh.access_token),
@@ -82,7 +82,7 @@ class LoginView(APIView):
             
             return Response({
                 "message": "Login successful.",
-                "user": UserSerializer(user).data,
+                "user": UserSerializer(user, context={'request': request}).data,
                 "tokens": {
                     "refresh": str(refresh),
                     "access": str(refresh.access_token),
@@ -112,9 +112,10 @@ class LogoutView(APIView):
 class UserProfileView(APIView):
     """Get or update current user profile information."""
     permission_classes = [IsAuthenticated]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
     
     def get(self, request):
-        serializer = UserSerializer(request.user)
+        serializer = UserSerializer(request.user, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
     
     def put(self, request):
@@ -129,7 +130,7 @@ class UserProfileView(APIView):
             user = serializer.update(request.user, serializer.validated_data)
             return Response({
                 "message": "Profile updated successfully.",
-                "user": UserSerializer(user).data
+                "user": UserSerializer(user, context={'request': request}).data
             }, status=status.HTTP_200_OK)
         
         return Response({"errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)

@@ -133,9 +133,17 @@ function Header() {
             className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 transition-colors"
           >
             <div className="w-8 h-8 rounded-full bg-forest-100 flex items-center justify-center">
-              <span className="text-sm font-medium text-forest-700">
-                {user?.name?.charAt(0) || 'U'}
-              </span>
+              {user?.avatar ? (
+                <img
+                  src={user.avatar}
+                  alt="User avatar"
+                  className="w-8 h-8 rounded-full object-cover"
+                />
+              ) : (
+                <span className="text-sm font-medium text-forest-700">
+                  {user?.name?.charAt(0) || 'U'}
+                </span>
+              )}
             </div>
             <span className="hidden md:block text-sm font-medium text-gray-700">
               {user?.name}

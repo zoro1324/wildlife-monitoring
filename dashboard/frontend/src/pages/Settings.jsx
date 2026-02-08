@@ -1,14 +1,23 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { User, Bell, Monitor, Shield, Camera, Save, Check } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Card, Button, Input, PhoneInput, Select, Badge } from '../components/ui';
 import { cn } from '../utils/helpers';
+import { authAPI } from '../services/api';
 
 function Settings() {
-  const { user } = useAuth();
+  const { user, updateProfile } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [formValues, setFormValues] = useState({
+    fullName: '',
+    email: '',
+    phone: '',
+  });
+  const fileInputRef = useRef(null);
 
   const tabs = [
     { id: 'profile', label: 'Profile', icon: User },
@@ -17,12 +26,108 @@ function Settings() {
     { id: 'security', label: 'Security', icon: Shield },
   ];
 
+  const buildUserData = (profile) => {
+    const userType = profile.user_type || 'public';
+    return {
+      id: profile.id,
+      name: `${profile.first_name} ${profile.last_name}`.trim() || profile.username,
+      username: profile.username,
+      email: profile.email,
+      role: userType === 'ranger' ? (profile.is_staff ? 'Admin' : 'Wildlife Ranger') : 'Public User',
+      userType: userType,
+      mobile_number: profile.mobile_number,
+      home_lat: profile.home_lat,
+      home_lon: profile.home_lon,
+      avatar: null,
+    };
+  };
+
+  const splitFullName = (fullName) => {
+    const trimmed = fullName.trim();
+    if (!trimmed) {
+      return { first_name: '', last_name: '' };
+    }
+    const parts = trimmed.split(/\s+/);
+    const first_name = parts.shift();
+    const last_name = parts.join(' ');
+    return { first_name, last_name };
+  };
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    setFormValues({
+      fullName: user.name || '',
+      email: user.email || '',
+      phone: user.mobile_number || '',
+    });
+  }, [user]);
+
+  const handleChange = (field) => (event) => {
+    setFormValues((prev) => ({
+      ...prev,
+      [field]: event.target.value,
+    }));
+  };
+
   const handleSave = async () => {
+    if (!user) {
+      return;
+    }
+
     setIsSaving(true);
-    await new Promise((r) => setTimeout(r, 1000));
-    setIsSaving(false);
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 3000);
+    setFormError('');
+
+    try {
+      const { first_name, last_name } = splitFullName(formValues.fullName);
+      const payload = {
+        first_name,
+        last_name,
+        mobile_number: formValues.phone || '',
+        email: formValues.email || undefined,
+      };
+
+      const response = await authAPI.updateProfile(payload);
+      const profile = response.user || response;
+      updateProfile(buildUserData(profile));
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
+    } catch (error) {
+      setFormError(error.message || 'Failed to update profile');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleAvatarChange = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    setFormError('');
+
+    try {
+      const formData = new FormData();
+      formData.append('avatar', file);
+      const response = await authAPI.updateProfile(formData);
+      const profile = response.user || response;
+      updateProfile(buildUserData(profile));
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
+    } catch (error) {
+      setFormError(error.message || 'Failed to upload avatar');
+    } finally {
+      setIsUploadingAvatar(false);
+      event.target.value = '';
+    }
   };
 
   return (
@@ -72,20 +177,58 @@ function Settings() {
             <>
               <Card>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Personal Information</h3>
+                {formError && (
+                  <p className="text-sm text-danger-600 mb-4">{formError}</p>
+                )}
                 <div className="flex items-center space-x-4 mb-6">
                   <div className="w-20 h-20 rounded-full bg-forest-100 flex items-center justify-center">
-                    <span className="text-3xl">{user?.avatar || '👤'}</span>
+                    {user?.avatar ? (
+                      <img
+                        src={user.avatar}
+                        alt="User avatar"
+                        className="w-20 h-20 rounded-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-3xl">{'👤'}</span>
+                    )}
                   </div>
                   <div>
-                    <Button variant="outline" size="sm">Change Avatar</Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAvatarClick}
+                      isLoading={isUploadingAvatar}
+                    >
+                      Change Avatar
+                    </Button>
                     <p className="text-xs text-gray-500 mt-1">JPG, PNG. Max 2MB</p>
                   </div>
                 </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleAvatarChange}
+                />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input label="Full Name" defaultValue={user?.name || ''} />
-                  <Input label="Email" type="email" defaultValue={user?.email || ''} />
-                  <Input label="Role" defaultValue={user?.role || 'Ranger'} disabled />
-                  <PhoneInput label="Phone" value={user?.mobile_number || ''} />
+                  <Input
+                    label="Full Name"
+                    value={formValues.fullName}
+                    onChange={handleChange('fullName')}
+                  />
+                  <Input
+                    label="Email"
+                    type="email"
+                    value={formValues.email}
+                    onChange={handleChange('email')}
+                  />
+                  <Input label="Role" value={user?.role || 'Ranger'} disabled />
+                  <PhoneInput
+                    label="Phone"
+                    value={formValues.phone}
+                    onChange={handleChange('phone')}
+                  />
                 </div>
               </Card>
               <Card>

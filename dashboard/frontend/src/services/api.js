@@ -188,9 +188,10 @@ export const authAPI = {
    * Update user profile (home location, mobile, name)
    */
   async updateProfile(profileData) {
+    const isFormData = profileData instanceof FormData;
     const response = await apiRequest('/auth/profile/', {
       method: 'PUT',
-      body: JSON.stringify(profileData),
+      body: isFormData ? profileData : JSON.stringify(profileData),
     });
     
     const data = await response.json();
