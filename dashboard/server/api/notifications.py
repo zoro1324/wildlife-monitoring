@@ -201,6 +201,53 @@ def make_phone_call(to_number, message):
         return None
 
 
+def normalize_animal_type(animal_type):
+    """Normalize animal type to canonical label used in the database."""
+    normalized_key = str(animal_type).strip().lower()
+    animal_type_map = {
+        "bision": "Bison",
+        "bison": "Bison",
+        "boar": "Boar",
+        "wild boar": "Boar",
+        "leopord": "Leopard",
+        "leopard": "Leopard",
+        "bear": "Bear",
+        "elephant": "Elephant",
+        "human": "Human",
+        "lion": "Lion",
+        "tiger": "Tiger",
+    }
+    return animal_type_map.get(normalized_key, animal_type)
+
+
+def get_risk_level(animal_type):
+    """Map animal type to risk level (human is not danger)."""
+    normalized = normalize_animal_type(animal_type)
+    danger_animals = {"Tiger", "Lion", "Leopard"}
+    warning_animals = {"Elephant", "Bear", "Boar"}
+
+    if normalized in danger_animals:
+        return "danger"
+    if normalized in warning_animals:
+        return "warning"
+    return "safe"
+
+
+def get_default_call_preference(animal_type):
+    """Default rule: call on danger only unless overridden per device."""
+    return get_risk_level(animal_type) == "danger"
+
+
+def should_call_owner(device, animal_type):
+    """Resolve call preference with per-device overrides."""
+    normalized = normalize_animal_type(animal_type)
+    preferences = device.call_preferences or {}
+
+    if normalized in preferences:
+        return bool(preferences[normalized])
+    return get_default_call_preference(normalized)
+
+
 def send_wildlife_alerts(device, animal_type, confidence, image_url=None):
     """
     Send wildlife alerts to nearby users via WhatsApp and call device owner.
@@ -244,25 +291,32 @@ def send_wildlife_alerts(device, animal_type, confidence, image_url=None):
                 f"Found {len(nearby_rangers)} rangers within 50km and {len(nearby_public)} public users within 10km of device {device.device_id}"
             )
             
-            # Track device owner to avoid duplicate WhatsApp message
+            # Track device owner to avoid duplicate notifications
             device_owner_id = device.owned_by.id if device.owned_by else None
+
+            # Send SMS to nearby users only for danger alerts
+            is_danger = get_risk_level(animal_type) == "danger"
+            if is_danger:
+                for user_info in nearby_rangers + nearby_public:
+                    user = user_info['user']
+                    if device_owner_id and user.id == device_owner_id:
+                        continue
+
+                    mobile = user_info['mobile_number']
+                    distance = user_info['distance']
+
+                    personalized_message = (
+                        f"{alert_message}\n\n"
+                        f"Distance from your home: {distance:.1f} km"
+                    )
+
+                    print(f"Sending SMS to {user.username} ({mobile}) - {distance:.1f}km away")
+                    send_sms_message(mobile, personalized_message)
+            else:
+                print("Non-danger alert: skipping SMS to nearby users")
             
-            # Send WhatsApp messages to nearby users
-            for user_info in nearby_rangers + nearby_public:
-                user = user_info['user']
-                mobile = user_info['mobile_number']
-                distance = user_info['distance']
-                
-                personalized_message = (
-                    f"{alert_message}\n\n"
-                    f"Distance from your home: {distance:.1f} km"
-                )
-                
-                print(f"Sending WhatsApp to {user.username} ({mobile}) - {distance:.1f}km away")
-                send_whatsapp_message(mobile, personalized_message)
-            
-            # Make a call to the device owner
-            if device.owned_by and device.owned_by.profile.mobile_number:
+            # Make a call to the device owner if allowed by preferences
+            if device.owned_by and device.owned_by.profile.mobile_number and should_call_owner(device, animal_type):
                 owner = device.owned_by
                 owner_mobile = owner.profile.mobile_number
                 
@@ -275,7 +329,7 @@ def send_wildlife_alerts(device, animal_type, confidence, image_url=None):
                 print(f"Calling device owner {owner.username} ({owner_mobile})")
                 make_phone_call(owner_mobile, call_message)
             else:
-                print(f"Device {device.device_id} has no owner or owner has no mobile number. Skipping call.")
+                print(f"Device {device.device_id} call skipped (no owner, no mobile, or preference disabled).")
                 
         except Exception as e:
             print(f"Error sending wildlife alerts: {e}")

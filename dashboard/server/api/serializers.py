@@ -155,10 +155,11 @@ class DeviceSerializer(serializers.ModelSerializer):
     """Serializer for Device model with access-based location visibility."""
     owned_by_username = serializers.CharField(source='owned_by.username', read_only=True)
     location = serializers.SerializerMethodField()
+    call_preferences = serializers.SerializerMethodField()
     
     class Meta:
         model = Device
-        fields = ['id', 'device_id', 'location', 'owned_by', 'owned_by_username', 'created_at', 'updated_at']
+        fields = ['id', 'device_id', 'location', 'call_preferences', 'owned_by', 'owned_by_username', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
     
     def get_location(self, obj):
@@ -184,6 +185,14 @@ class DeviceSerializer(serializers.ModelSerializer):
             'visible': False,
             'message': 'Location hidden for privacy'
         }
+
+    def get_call_preferences(self, obj):
+        """Return call preferences only for the device owner."""
+        request = self.context.get('request')
+        user = request.user if request else None
+        if user and obj.owned_by == user:
+            return obj.call_preferences or {}
+        return None
 
 
 class DeviceRegisterSerializer(serializers.Serializer):
@@ -218,6 +227,23 @@ class DeviceUpdateSerializer(serializers.Serializer):
     lat = serializers.FloatField(required=False, allow_null=True)
     lon = serializers.FloatField(required=False, allow_null=True)
     owned_by = serializers.IntegerField(required=False, allow_null=True)
+    call_preferences = serializers.DictField(required=False)
+
+    def validate_call_preferences(self, value):
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("call_preferences must be a JSON object.")
+
+        valid_animals = {choice[0] for choice in CapturedImage.ANIMAL_CHOICES}
+        cleaned = {}
+
+        for key, setting in value.items():
+            if key not in valid_animals:
+                raise serializers.ValidationError(f"Invalid animal type: {key}.")
+            if not isinstance(setting, bool):
+                raise serializers.ValidationError(f"Call preference for {key} must be true or false.")
+            cleaned[key] = setting
+
+        return cleaned
     
     def update(self, instance, validated_data):
         if 'lat' in validated_data:
@@ -233,6 +259,8 @@ class DeviceUpdateSerializer(serializers.Serializer):
                     raise serializers.ValidationError({"owned_by": "User not found."})
             else:
                 instance.owned_by = None
+        if 'call_preferences' in validated_data:
+            instance.call_preferences = validated_data['call_preferences']
         
         instance.save()
         return instance

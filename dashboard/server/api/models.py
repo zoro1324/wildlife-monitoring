@@ -49,6 +49,11 @@ class Device(models.Model):
     device_id = models.CharField(max_length=100, unique=True)
     lat = models.FloatField(null=True, blank=True, help_text="Latitude")
     lon = models.FloatField(null=True, blank=True, help_text="Longitude")
+    call_preferences = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Per-animal call overrides for this device (bools keyed by animal type)",
+    )
     owned_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="devices")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -15,7 +15,6 @@ import LiveMonitoring from './pages/LiveMonitoring';
 import MapTracking from './pages/MapTracking';
 import DetectionHistory from './pages/DetectionHistory';
 import AlertsCenter from './pages/AlertsCenter';
-import CameraHealth from './pages/CameraHealth';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
 import DeviceSimulator from './pages/DeviceSimulator';
@@ -139,7 +138,8 @@ function AppRoutes() {
         <Route path="map-tracking" element={<MapTracking />} />
         <Route path="detection-history" element={<DetectionHistory />} />
         <Route path="alerts" element={<AlertsCenter />} />
-        <Route path="camera-health" element={<CameraHealth />} />
+        <Route path="all-devices" element={<MyDevices />} />
+        <Route path="camera-health" element={<Navigate to="/ranger/all-devices" replace />} />
         <Route path="analytics" element={<Analytics />} />
         <Route path="settings" element={<Settings />} />
         <Route path="device-simulator" element={<DeviceSimulator />} />
