@@ -228,7 +228,7 @@ class DeviceRegisterView(APIView):
         serializer = DeviceRegisterSerializer(data=request.data)
         if serializer.is_valid():
             device, created = serializer.save()
-            device_serializer = DeviceSerializer(device)
+            device_serializer = DeviceSerializer(device, context={'request': request})
             
             return Response({
                 "status": "success",
@@ -253,7 +253,7 @@ class DeviceDetailView(APIView):
         
         if serializer.is_valid():
             device = serializer.save()
-            device_serializer = DeviceSerializer(device)
+            device_serializer = DeviceSerializer(device, context={'request': request})
             
             return Response({
                 "status": "success",

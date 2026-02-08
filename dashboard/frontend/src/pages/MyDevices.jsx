@@ -1,14 +1,44 @@
 import { useState } from 'react';
-import { Camera, MapPin, Clock, Activity, AlertTriangle, Eye, Lock, RefreshCw, Plus, X, Loader2, Trash2, Navigation } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Camera, MapPin, Clock, Activity, AlertTriangle, Eye, RefreshCw, Plus, Loader2, Trash2, Navigation, Settings } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { Card, Badge, Button, EmptyState, Modal, Input } from '../components/ui';
+import { useAuth } from '../context/AuthContext';
+import { Card, Badge, Button, EmptyState, Modal } from '../components/ui';
 import { formatSmartDate, getAnimalIcon } from '../utils/helpers';
-import { userDevicesAPI } from '../services/api';
+import { devicesAPI, userDevicesAPI } from '../services/api';
+
+const CALL_OPTIONS = [
+  { key: 'Tiger', label: 'Tiger' },
+  { key: 'Lion', label: 'Lion' },
+  { key: 'Leopard', label: 'Leopard' },
+  { key: 'Elephant', label: 'Elephant' },
+  { key: 'Bear', label: 'Bear' },
+  { key: 'Boar', label: 'Boar' },
+  { key: 'Bison', label: 'Bison' },
+  { key: 'Human', label: 'Human' },
+];
+
+const DEFAULT_CALL_RULES = {
+  Tiger: true,
+  Lion: true,
+  Leopard: true,
+  Elephant: false,
+  Bear: false,
+  Boar: false,
+  Bison: false,
+  Human: false,
+};
 
 function MyDevices() {
   const { cameras, detections, accessLevel, ownedDevicesCount, refreshData, isLoadingData } = useApp();
+  const { isRanger } = useAuth();
+  const navigate = useNavigate();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [configCamera, setConfigCamera] = useState(null);
+  const [callSelections, setCallSelections] = useState(DEFAULT_CALL_RULES);
+  const [isSavingPrefs, setIsSavingPrefs] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [addError, setAddError] = useState('');
   const [addSuccess, setAddSuccess] = useState('');
@@ -25,6 +55,11 @@ function MyDevices() {
   // Get detections for each camera
   const getDeviceDetections = (cameraId) => {
     return detections.filter(d => d.cameraId === cameraId);
+  };
+
+  const goToDetectionHistory = (cameraId) => {
+    const basePath = isRanger ? '/ranger' : '/public';
+    navigate(`${basePath}/detection-history?camera_id=${encodeURIComponent(cameraId)}`);
   };
 
   const handleRefresh = async () => {
@@ -117,16 +152,67 @@ function MyDevices() {
     setNewDevice({ device_id: '', lat: '', lon: '' });
   };
 
+  const openConfig = (camera) => {
+    const merged = {
+      ...DEFAULT_CALL_RULES,
+      ...(camera.callPreferences || {}),
+    };
+    setCallSelections(merged);
+    setSaveError('');
+    setConfigCamera(camera);
+  };
+
+  const closeConfig = () => {
+    setConfigCamera(null);
+    setSaveError('');
+  };
+
+  const toggleSelection = (key) => {
+    setCallSelections((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
+
+  const buildOverrides = () => {
+    const overrides = {};
+    CALL_OPTIONS.forEach(({ key }) => {
+      if (callSelections[key] !== DEFAULT_CALL_RULES[key]) {
+        overrides[key] = callSelections[key];
+      }
+    });
+    return overrides;
+  };
+
+  const savePreferences = async () => {
+    if (!configCamera) return;
+    setIsSavingPrefs(true);
+    setSaveError('');
+
+    try {
+      const overrides = buildOverrides();
+      await devicesAPI.update(configCamera.id, {
+        call_preferences: overrides,
+      });
+      await refreshData();
+      closeConfig();
+    } catch (err) {
+      setSaveError(err?.message || 'Failed to save call preferences');
+    } finally {
+      setIsSavingPrefs(false);
+    }
+  };
+
   return (
     <div className="space-y-6 pb-16 lg:pb-0">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-display font-bold text-gray-900">
-            My Devices
+            {isRanger ? 'All Devices' : 'My Devices'}
           </h1>
           <p className="text-gray-600 mt-1">
-            Manage your wildlife monitoring devices
+            {isRanger ? 'Monitor all registered devices' : 'Manage your wildlife monitoring devices'}
           </p>
         </div>
         <div className="flex gap-2">
@@ -207,7 +293,7 @@ function MyDevices() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {cameras.map((camera) => {
             const deviceDetections = getDeviceDetections(camera.id);
-            const recentDetections = deviceDetections.slice(0, 5);
+            const recentDetections = deviceDetections.slice(0, 2);
             const dangerCount = deviceDetections.filter(d => d.riskLevel === 'danger').length;
 
             return (
@@ -228,6 +314,13 @@ function MyDevices() {
                       <Badge variant={camera.status === 'online' ? 'success' : 'danger'}>
                         {camera.status}
                       </Badge>
+                      <button
+                        onClick={() => openConfig(camera)}
+                        className="p-1.5 text-gray-400 hover:text-forest-600 hover:bg-forest-50 rounded-lg transition-colors"
+                        title="Configure call preferences"
+                      >
+                        <Settings className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={() => handleRemoveDevice(camera.id)}
                         className="p-1.5 text-gray-400 hover:text-danger-600 hover:bg-danger-50 rounded-lg transition-colors"
@@ -316,6 +409,15 @@ function MyDevices() {
                             </Badge>
                           </div>
                         ))}
+                        {deviceDetections.length > 2 && (
+                          <button
+                            type="button"
+                            onClick={() => goToDetectionHistory(camera.id)}
+                            className="w-full text-sm text-forest-700 font-medium py-2 rounded-lg border border-forest-100 bg-forest-50 hover:bg-forest-100 transition-colors"
+                          >
+                            All Detections
+                          </button>
+                        )}
                       </div>
                     </div>
                   )}
@@ -436,6 +538,62 @@ function MyDevices() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        isOpen={!!configCamera}
+        onClose={closeConfig}
+        title={configCamera ? `Call Preferences: ${configCamera.name}` : 'Call Preferences'}
+        size="lg"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Choose which detections should trigger a call to the camera owner. Defaults are based on risk levels.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {CALL_OPTIONS.map((option) => (
+              <label key={option.key} className="flex items-center justify-between p-3 border rounded-lg">
+                <span className="text-sm font-medium text-gray-900">{option.label}</span>
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 text-forest-600"
+                  checked={!!callSelections[option.key]}
+                  onChange={() => toggleSelection(option.key)}
+                />
+              </label>
+            ))}
+          </div>
+
+          {saveError && (
+            <div className="text-sm text-danger-600 bg-danger-50 border border-danger-200 rounded-lg p-3">
+              {saveError}
+            </div>
+          )}
+
+          <div className="flex items-center justify-between pt-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setCallSelections({ ...DEFAULT_CALL_RULES })}
+            >
+              Use Default Rules
+            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={closeConfig}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                isLoading={isSavingPrefs}
+                onClick={savePreferences}
+              >
+                Save Preferences
+              </Button>
+            </div>
+          </div>
+        </div>
       </Modal>
     </div>
   );

@@ -425,9 +425,9 @@ function RangerDashboard() {
             <Button
               variant="ghost"
               className="w-full mt-4"
-              onClick={() => navigate('/ranger/camera-health')}
+              onClick={() => navigate('/ranger/all-devices')}
             >
-              View All Cameras
+              View All Devices
             </Button>
           </Card>
         </div>

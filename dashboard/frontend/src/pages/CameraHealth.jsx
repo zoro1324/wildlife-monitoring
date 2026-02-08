@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Camera, Battery, Wifi, Sun, MapPin, RefreshCw, AlertTriangle, Check, Clock, Settings } from 'lucide-react';
+import { Camera, Battery, Wifi, Sun, MapPin, RefreshCw, AlertTriangle, Clock } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Card, Badge, Button, Select, EmptyState } from '../components/ui';
 import { BatteryIndicator, SignalIndicator } from '../components/ui/StatusIndicators';
@@ -42,6 +42,7 @@ function CameraHealth() {
     lowBattery: cameras.filter((c) => c.battery < 30).length,
     weakSignal: cameras.filter((c) => c.signalStrength < 30).length,
   };
+
 
   return (
     <div className="space-y-6 pb-16 lg:pb-0">
@@ -215,9 +216,6 @@ function CameraCard({ camera }) {
 
       {/* Actions */}
       <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
-        <Button variant="ghost" size="sm" leftIcon={<Settings className="w-4 h-4" />}>
-          Configure
-        </Button>
         <Button variant="ghost" size="sm" leftIcon={<RefreshCw className="w-4 h-4" />}>
           Reboot
         </Button>

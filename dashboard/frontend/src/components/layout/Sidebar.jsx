@@ -30,7 +30,7 @@ const rangerNavItems = [
   { path: '/ranger/map-tracking', icon: Map, label: 'Map Tracking' },
   { path: '/ranger/detection-history', icon: History, label: 'Detection History' },
   { path: '/ranger/alerts', icon: Bell, label: 'Alerts', badge: true },
-  { path: '/ranger/camera-health', icon: Camera, label: 'Camera Health' },
+  { path: '/ranger/all-devices', icon: Camera, label: 'All Devices' },
   { path: '/ranger/analytics', icon: BarChart3, label: 'Analytics' },
   { path: '/ranger/device-simulator', icon: Upload, label: 'Device Simulator' },
   { path: '/ranger/sms-test', icon: MessageSquare, label: 'SMS Test' },

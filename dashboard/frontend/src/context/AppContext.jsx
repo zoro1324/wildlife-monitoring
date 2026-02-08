@@ -21,6 +21,7 @@ const transformDevice = (device) => ({
   lastSeen: device.updated_at || new Date().toISOString(),
   lastActive: device.updated_at || new Date().toISOString(),
   owner: device.owned_by_username,
+  callPreferences: device.call_preferences || {},
 });
 
 // Transform backend detection to frontend format
@@ -44,7 +45,7 @@ const transformDetection = (detection) => {
   
   // Determine risk level based on animal type
   const getRiskLevel = (type) => {
-    const dangerAnimals = ['tiger', 'lion', 'leopard', 'human'];
+    const dangerAnimals = ['tiger', 'lion', 'leopard'];
     const warningAnimals = ['elephant', 'bear', 'boar'];
     if (dangerAnimals.includes(type)) return 'danger';
     if (warningAnimals.includes(type)) return 'warning';

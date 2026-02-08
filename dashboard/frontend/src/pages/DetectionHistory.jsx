@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Search, Filter, Download, Camera, Clock, MapPin, X, ChevronDown, ChevronUp, Lock, Image as ImageIcon } from 'lucide-react';
 import { useApp } from '../context/AppContext';
@@ -32,6 +32,21 @@ function DetectionHistory() {
     riskLevel: 'all',
     dateRange: 'all',
   });
+
+  const cameraQueryId = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get('camera_id');
+  }, [location.search]);
+
+  useEffect(() => {
+    if (!cameraQueryId) return;
+    if (!cameras.some((camera) => camera.id === cameraQueryId)) return;
+
+    setFilters((prev) => ({
+      ...prev,
+      cameraId: cameraQueryId,
+    }));
+  }, [cameraQueryId, cameras]);
   
   // Determine base path for navigation
   const basePath = location.pathname.startsWith('/ranger') ? '/ranger' : '/public';
