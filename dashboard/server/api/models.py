@@ -18,6 +18,7 @@ class UserProfile(models.Model):
     home_lat = models.FloatField(null=True, blank=True, help_text="Home Latitude")
     home_lon = models.FloatField(null=True, blank=True, help_text="Home Longitude")
     user_type = models.CharField(max_length=10, choices=USER_TYPE_CHOICES, default='public')
+    avatar = models.ImageField(upload_to="avatars/%Y/%m/%d/", null=True, blank=True)
     
     def __str__(self):
         return f"{self.user.username}'s profile ({self.user_type})"

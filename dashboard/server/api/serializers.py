@@ -19,11 +19,21 @@ class UserSerializer(serializers.ModelSerializer):
     home_lat = serializers.FloatField(source='profile.home_lat', read_only=True)
     home_lon = serializers.FloatField(source='profile.home_lon', read_only=True)
     user_type = serializers.CharField(source='profile.user_type', read_only=True)
+    avatar = serializers.SerializerMethodField()
     
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'mobile_number', 'home_lat', 'home_lon', 'user_type', 'is_staff', 'date_joined']
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'mobile_number', 'home_lat', 'home_lon', 'user_type', 'avatar', 'is_staff', 'date_joined']
         read_only_fields = ['id', 'is_staff', 'date_joined']
+
+    def get_avatar(self, obj):
+        profile = getattr(obj, 'profile', None)
+        if not profile or not profile.avatar:
+            return None
+        request = self.context.get('request') if hasattr(self, 'context') else None
+        if request:
+            return request.build_absolute_uri(profile.avatar.url)
+        return profile.avatar.url
 
 
 class SignupSerializer(serializers.Serializer):
@@ -347,6 +357,14 @@ class UserProfileUpdateSerializer(serializers.Serializer):
     mobile_number = serializers.CharField(max_length=15, required=False, allow_blank=True)
     first_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
     last_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    email = serializers.EmailField(required=False)
+    avatar = serializers.ImageField(required=False, allow_null=True)
+
+    def validate_email(self, value):
+        user = self.context.get('user')
+        if User.objects.filter(email=value).exclude(id=user.id).exists():
+            raise serializers.ValidationError("Email already registered.")
+        return value
     
     def validate_mobile_number(self, value):
         if value:
@@ -364,6 +382,8 @@ class UserProfileUpdateSerializer(serializers.Serializer):
         user = instance
         profile = user.profile
         
+        if 'email' in validated_data:
+            user.email = validated_data['email']
         if 'first_name' in validated_data:
             user.first_name = validated_data['first_name']
         if 'last_name' in validated_data:
@@ -376,6 +396,8 @@ class UserProfileUpdateSerializer(serializers.Serializer):
             profile.home_lon = validated_data['home_lon']
         if 'mobile_number' in validated_data:
             profile.mobile_number = validated_data['mobile_number'] or None
+        if 'avatar' in validated_data:
+            profile.avatar = validated_data['avatar']
         profile.save()
         
         return user
