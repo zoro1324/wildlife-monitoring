@@ -14,10 +14,10 @@ const char* WIFI_PASSWORD = "1234567890";
 const char* SERVER_HOST = "10.76.24.170"; // your Django server IP
 const uint16_t SERVER_PORT = 8000;         // Django dev port
 const char* ENDPOINT = "/api/device/capture/";
-const char* DEVICE_ID = "ESP32_CAM_001";
+const char* DEVICE_ID = "ESP32_CAM_ 001";
 
 // PIR input pin
-#define PIR_PIN 12
+#define PIR_PIN 13
 
 // Rate limit: minimum time between uploads (ms)
 const unsigned long MIN_UPLOAD_INTERVAL_MS = 10000; // 10 seconds
