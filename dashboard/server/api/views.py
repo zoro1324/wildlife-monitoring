@@ -445,6 +445,8 @@ class CapturedImageView(APIView):
             return Response({
                 "status": "success",
                 "message": "Image captured and classified",
+                "class": animal_type,
+                "confidence": confidence,
                 "data": {
                     "id": captured_image.id,
                     "device_id": captured_image.device.device_id,
