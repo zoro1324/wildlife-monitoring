@@ -44,6 +44,72 @@ const unsigned long MIN_UPLOAD_INTERVAL_MS = 10000; // 10 seconds
 volatile bool motion_flag = false;
 unsigned long last_upload_ms = 0;
 
+String extractJsonString(const String& json, const char* key) {
+  String needle = String("\"") + key + "\"";
+  int keyPos = json.indexOf(needle);
+  if (keyPos == -1) {
+    return "";
+  }
+  int colonPos = json.indexOf(':', keyPos + needle.length());
+  if (colonPos == -1) {
+    return "";
+  }
+  int quoteStart = json.indexOf('"', colonPos + 1);
+  if (quoteStart == -1) {
+    return "";
+  }
+  int quoteEnd = json.indexOf('"', quoteStart + 1);
+  if (quoteEnd == -1) {
+    return "";
+  }
+  return json.substring(quoteStart + 1, quoteEnd);
+}
+
+bool readResponseAndPrintClass(WiFiClient& client) {
+  String response;
+  unsigned long waitStart = millis();
+
+  while (client.connected() && millis() - waitStart < 10000) {
+    while (client.available()) {
+      char c = static_cast<char>(client.read());
+      response += c;
+    }
+  }
+
+  int statusCode = -1;
+  int firstLineEnd = response.indexOf("\r\n");
+  if (firstLineEnd != -1 && response.startsWith("HTTP/1.1 ")) {
+    statusCode = response.substring(9, 12).toInt();
+  }
+
+  int bodyStart = response.indexOf("\r\n\r\n");
+  String body = (bodyStart != -1) ? response.substring(bodyStart + 4) : "";
+
+  Serial.print("HTTP status: ");
+  Serial.println(statusCode);
+  if (body.length() > 0) {
+    Serial.println("Response body:");
+    Serial.println(body);
+  }
+
+  String animalClass = extractJsonString(body, "class");
+  if (animalClass.length() == 0) {
+    animalClass = extractJsonString(body, "animal_class");
+  }
+  if (animalClass.length() == 0) {
+    animalClass = extractJsonString(body, "animal");
+  }
+
+  if (animalClass.length() > 0) {
+    Serial.print("Detected class: ");
+    Serial.println(animalClass);
+  } else {
+    Serial.println("Detected class not found in response.");
+  }
+
+  return statusCode == 200 || statusCode == 201;
+}
+
 void IRAM_ATTR onMotion() {
   motion_flag = true;
 }
@@ -152,22 +218,9 @@ bool sendImageMultipart(uint8_t* img, size_t len) {
 
   client.print(closing);
 
-  // Read response
-  unsigned long waitStart = millis();
-  while (client.connected() && millis() - waitStart < 10000) {
-    while (client.available()) {
-      String line = client.readStringUntil('\n');
-      Serial.println(line);
-      if (line.startsWith("HTTP/1.1 ")) {
-        // Expect 201 Created or 200 OK
-        if (line.indexOf("200") != -1 || line.indexOf("201") != -1) {
-          // Success
-        }
-      }
-    }
-  }
+  bool ok = readResponseAndPrintClass(client);
   client.stop();
-  return true;
+  return ok;
 }
 
 bool captureAndSend() {
