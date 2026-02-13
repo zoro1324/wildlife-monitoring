@@ -8,8 +8,8 @@
 #include "esp_camera.h"
 
 // ====== CONFIGURE THESE ======
-const char* WIFI_SSID     = "YOUR_WIFI_SSID";
-const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
+const char* WIFI_SSID     = "zoro";
+const char* WIFI_PASSWORD = "1234567890";
 
 const char* SERVER_HOST = "10.76.24.170"; // your Django server IP
 const uint16_t SERVER_PORT = 8000;         // Django dev port
@@ -19,8 +19,14 @@ const char* DEVICE_ID = "ESP32_CAM_001";
 // PIR input pin
 #define PIR_PIN 13
 
+// Buzzer output pin (active buzzer)
+#define BUZZER_PIN 14
+
 // Rate limit: minimum time between uploads (ms)
 const unsigned long MIN_UPLOAD_INTERVAL_MS = 10000; // 10 seconds
+
+// Time window for human crossing after dangerous animal (ms)
+const unsigned long DANGEROUS_WINDOW_MS = 60UL * 60UL * 1000UL; // 60 minutes
 
 // Camera model pins (AI Thinker)
 #define PWDN_GPIO_NUM     32
@@ -43,6 +49,8 @@ const unsigned long MIN_UPLOAD_INTERVAL_MS = 10000; // 10 seconds
 
 volatile bool motion_flag = false;
 unsigned long last_upload_ms = 0;
+unsigned long last_dangerous_ms = 0;
+String last_detected_class = "";
 
 String extractJsonString(const String& json, const char* key) {
   String needle = String("\"") + key + "\"";
@@ -107,7 +115,30 @@ bool readResponseAndPrintClass(WiFiClient& client) {
     Serial.println("Detected class not found in response.");
   }
 
+  last_detected_class = animalClass;
+
   return statusCode == 200 || statusCode == 201;
+}
+
+String toLowerCopy(String input) {
+  input.toLowerCase();
+  return input;
+}
+
+bool isDangerousClass(const String& cls) {
+  String c = toLowerCopy(cls);
+  return c == "tiger" || c == "lion" || c == "leopard" || c == "bear" || c == "boar" || c == "elephant";
+}
+
+bool isHumanClass(const String& cls) {
+  String c = toLowerCopy(cls);
+  return c == "human" || c == "person";
+}
+
+void buzzAlert(unsigned long duration_ms) {
+  digitalWrite(BUZZER_PIN, HIGH);
+  delay(duration_ms);
+  digitalWrite(BUZZER_PIN, LOW);
 }
 
 void IRAM_ATTR onMotion() {
@@ -231,6 +262,21 @@ bool captureAndSend() {
   }
   bool ok = sendImageMultipart(fb->buf, fb->len);
   esp_camera_fb_return(fb);
+  if (ok && last_detected_class.length() > 0) {
+    unsigned long now = millis();
+    if (isDangerousClass(last_detected_class)) {
+      last_dangerous_ms = now;
+      Serial.println("Dangerous animal spotted. Timer updated.");
+    }
+    if (isHumanClass(last_detected_class)) {
+      if (last_dangerous_ms != 0 && (now - last_dangerous_ms) <= DANGEROUS_WINDOW_MS) {
+        Serial.println("Human detected after dangerous animal. Buzzing alert.");
+        buzzAlert(3000);
+      } else {
+        Serial.println("Human detected, but no recent dangerous animal.");
+      }
+    }
+  }
   return ok;
 }
 
@@ -239,6 +285,8 @@ void setup() {
   delay(300);
 
   pinMode(PIR_PIN, INPUT); // use INPUT_PULLDOWN if your PIR requires it
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, LOW);
   attachInterrupt(digitalPinToInterrupt(PIR_PIN), onMotion, RISING);
 
   if (!initCamera()) {

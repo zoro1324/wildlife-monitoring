@@ -14,13 +14,19 @@ const char* WIFI_PASSWORD = "1234567890";
 const char* SERVER_HOST = "10.76.24.170"; // your Django server IP
 const uint16_t SERVER_PORT = 8000;         // Django dev port
 const char* ENDPOINT = "/api/device/capture/";
-const char* DEVICE_ID = "ESP32_CAM_ 001";
+const char* DEVICE_ID = "ESP32-CAM-001";
 
 // PIR input pin
 #define PIR_PIN 13
 
+// Buzzer output pin (active buzzer)
+#define BUZZER_PIN 14
+
 // Rate limit: minimum time between uploads (ms)
 const unsigned long MIN_UPLOAD_INTERVAL_MS = 10000; // 10 seconds
+
+// Time window for human crossing after dangerous animal (ms)
+const unsigned long DANGEROUS_WINDOW_MS = 60UL * 60UL * 1000UL; // 60 minutes
 
 // Camera model pins (AI Thinker)
 #define PWDN_GPIO_NUM     32
@@ -43,6 +49,97 @@ const unsigned long MIN_UPLOAD_INTERVAL_MS = 10000; // 10 seconds
 
 volatile bool motion_flag = false;
 unsigned long last_upload_ms = 0;
+unsigned long last_dangerous_ms = 0;
+String last_detected_class = "";
+
+String extractJsonString(const String& json, const char* key) {
+  String needle = String("\"") + key + "\"";
+  int keyPos = json.indexOf(needle);
+  if (keyPos == -1) {
+    return "";
+  }
+  int colonPos = json.indexOf(':', keyPos + needle.length());
+  if (colonPos == -1) {
+    return "";
+  }
+  int quoteStart = json.indexOf('"', colonPos + 1);
+  if (quoteStart == -1) {
+    return "";
+  }
+  int quoteEnd = json.indexOf('"', quoteStart + 1);
+  if (quoteEnd == -1) {
+    return "";
+  }
+  return json.substring(quoteStart + 1, quoteEnd);
+}
+
+bool readResponseAndPrintClass(WiFiClient& client) {
+  String response;
+  unsigned long waitStart = millis();
+
+  while (client.connected() && millis() - waitStart < 10000) {
+    while (client.available()) {
+      char c = static_cast<char>(client.read());
+      response += c;
+    }
+  }
+
+  int statusCode = -1;
+  int firstLineEnd = response.indexOf("\r\n");
+  if (firstLineEnd != -1 && response.startsWith("HTTP/1.1 ")) {
+    statusCode = response.substring(9, 12).toInt();
+  }
+
+  int bodyStart = response.indexOf("\r\n\r\n");
+  String body = (bodyStart != -1) ? response.substring(bodyStart + 4) : "";
+
+  Serial.print("HTTP status: ");
+  Serial.println(statusCode);
+  if (body.length() > 0) {
+    Serial.println("Response body:");
+    Serial.println(body);
+  }
+
+  String animalClass = extractJsonString(body, "class");
+  if (animalClass.length() == 0) {
+    animalClass = extractJsonString(body, "animal_class");
+  }
+  if (animalClass.length() == 0) {
+    animalClass = extractJsonString(body, "animal");
+  }
+
+  if (animalClass.length() > 0) {
+    Serial.print("Detected class: ");
+    Serial.println(animalClass);
+  } else {
+    Serial.println("Detected class not found in response.");
+  }
+
+  last_detected_class = animalClass;
+
+  return statusCode == 200 || statusCode == 201;
+}
+
+String toLowerCopy(String input) {
+  input.toLowerCase();
+  return input;
+}
+
+bool isDangerousClass(const String& cls) {
+  String c = toLowerCopy(cls);
+  return c == "tiger" || c == "lion" || c == "leopard" || c == "bear" || c == "boar" || c == "elephant";
+}
+
+bool isHumanClass(const String& cls) {
+  String c = toLowerCopy(cls);
+  return c == "human" || c == "person";
+}
+
+void buzzAlert(unsigned long duration_ms) {
+  digitalWrite(BUZZER_PIN, HIGH);
+  delay(duration_ms);
+  digitalWrite(BUZZER_PIN, LOW);
+}
 
 void IRAM_ATTR onMotion() {
   motion_flag = true;
@@ -152,22 +249,9 @@ bool sendImageMultipart(uint8_t* img, size_t len) {
 
   client.print(closing);
 
-  // Read response
-  unsigned long waitStart = millis();
-  while (client.connected() && millis() - waitStart < 10000) {
-    while (client.available()) {
-      String line = client.readStringUntil('\n');
-      Serial.println(line);
-      if (line.startsWith("HTTP/1.1 ")) {
-        // Expect 201 Created or 200 OK
-        if (line.indexOf("200") != -1 || line.indexOf("201") != -1) {
-          // Success
-        }
-      }
-    }
-  }
+  bool ok = readResponseAndPrintClass(client);
   client.stop();
-  return true;
+  return ok;
 }
 
 bool captureAndSend() {
@@ -178,6 +262,21 @@ bool captureAndSend() {
   }
   bool ok = sendImageMultipart(fb->buf, fb->len);
   esp_camera_fb_return(fb);
+  if (ok && last_detected_class.length() > 0) {
+    unsigned long now = millis();
+    if (isDangerousClass(last_detected_class)) {
+      last_dangerous_ms = now;
+      Serial.println("Dangerous animal spotted. Timer updated.");
+    }
+    if (isHumanClass(last_detected_class)) {
+      if (last_dangerous_ms != 0 && (now - last_dangerous_ms) <= DANGEROUS_WINDOW_MS) {
+        Serial.println("Human detected after dangerous animal. Buzzing alert.");
+        buzzAlert(3000);
+      } else {
+        Serial.println("Human detected, but no recent dangerous animal.");
+      }
+    }
+  }
   return ok;
 }
 
@@ -185,7 +284,10 @@ void setup() {
   Serial.begin(115200);
   delay(300);
 
-  pinMode(PIR_PIN, INPUT); // use INPUT_PULLDOWN if your PIR requires it
+  pinMode(PIR_PIN, INPUT_PULLDOWN);
+   // use INPUT_PULLDOWN if your PIR requires it
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, LOW);
   attachInterrupt(digitalPinToInterrupt(PIR_PIN), onMotion, RISING);
 
   if (!initCamera()) {
