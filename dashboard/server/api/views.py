@@ -311,7 +311,7 @@ class CapturedImageView(APIView):
         """Lazy load YOLO model."""
         if self._model is None:
             from ultralytics import YOLO
-            model_path = Path(__file__).resolve().parent.parent.parent.parent / "best_models" / "best-copy.pt"
+            model_path = Path(__file__).resolve().parent.parent.parent.parent / "best_models" / "medium-50.pt"
             
             if not model_path.exists():
                 raise FileNotFoundError(f"YOLO model not found at {model_path}")
