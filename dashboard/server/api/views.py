@@ -302,6 +302,7 @@ class CapturedImageView(APIView):
     """Receive image from ESP32 and run YOLO classification."""
     permission_classes = [AllowAny]
     parser_classes = [MultiPartParser, FormParser]
+    confidence_threshold = 0.60
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -377,7 +378,7 @@ class CapturedImageView(APIView):
             animal_type, confidence, annotated_image_data = self.classify_image(image_file)
             
             # Handle no detection
-            if not animal_type:
+            if not animal_type or confidence < self.confidence_threshold:
                 return Response({
                     "status": "no_detection",
                     "message": "No animal detected in the image",

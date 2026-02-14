@@ -1,24 +1,29 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Eye, EyeOff, Mail, Lock, Shield, Trees } from 'lucide-react';
+import { Eye, EyeOff, Lock, Shield, Trees, User } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { Button, Input } from '../components/ui';
+import { Button, Input, PhoneInput } from '../components/ui';
 
 function Login() {
   const navigate = useNavigate();
   const { loginAsRanger } = useAuth();
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [loginMethod, setLoginMethod] = useState('default');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const handleIdentifierChange = (e) => {
+    setIdentifier(e.target.value);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
 
-    const result = await loginAsRanger(email, password);
+    const result = await loginAsRanger(identifier, password);
     
     if (result.success) {
       // Redirect based on user type
@@ -102,15 +107,52 @@ function Login() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              <Input
-                label="Email or Username"
-                type="text"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="john@wildlife.com"
-                leftIcon={<Mail className="w-5 h-5" />}
-                required
-              />
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setLoginMethod('default')}
+                    className={`flex-1 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                      loginMethod === 'default'
+                        ? 'border-forest-500 bg-forest-50 text-forest-700'
+                        : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    Email / Username
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLoginMethod('mobile')}
+                    className={`flex-1 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                      loginMethod === 'mobile'
+                        ? 'border-earth-500 bg-earth-50 text-earth-700'
+                        : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    Mobile Number
+                  </button>
+                </div>
+
+                {loginMethod === 'mobile' ? (
+                  <PhoneInput
+                    label="Mobile Number"
+                    value={identifier}
+                    onChange={handleIdentifierChange}
+                    helperText="Use the same number you registered with"
+                    required
+                  />
+                ) : (
+                  <Input
+                    label="Email or Username"
+                    type="text"
+                    value={identifier}
+                    onChange={handleIdentifierChange}
+                    placeholder="john@wildlife.com"
+                    leftIcon={<User className="w-5 h-5" />}
+                    required
+                  />
+                )}
+              </div>
 
               <Input
                 label="Password"
