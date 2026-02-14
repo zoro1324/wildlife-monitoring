@@ -110,11 +110,11 @@ export function AuthProvider({ children }) {
   }, []);
 
   // Login with credentials
-  const loginAsRanger = async (identifier, password) => {
+  const loginAsRanger = async (identifier, password, loginMethod = 'default') => {
     setIsLoading(true);
     
     try {
-      const response = await authAPI.login(identifier, password);
+      const response = await authAPI.login(identifier, password, loginMethod);
       const profile = response.user;
       const userType = profile.user_type || 'ranger';
       
@@ -141,7 +141,11 @@ export function AuthProvider({ children }) {
       return { success: true, userType: userType };
     } catch (error) {
       setIsLoading(false);
-      return { success: false, error: error.message || 'Invalid credentials' };
+      return {
+        success: false,
+        error: error.message || 'Invalid credentials',
+        fieldErrors: error.fieldErrors || {},
+      };
     }
   };
 
@@ -177,7 +181,11 @@ export function AuthProvider({ children }) {
       return { success: true, userType: userType };
     } catch (error) {
       setIsLoading(false);
-      return { success: false, error: error.message || 'Registration failed' };
+      return {
+        success: false,
+        error: error.message || 'Registration failed',
+        fieldErrors: error.fieldErrors || {},
+      };
     }
   };
 

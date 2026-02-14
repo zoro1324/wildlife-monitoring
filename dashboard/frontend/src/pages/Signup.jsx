@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Eye, EyeOff, Mail, Lock, User, Trees, UserCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useAlerts } from '../context/AlertContext';
 import { Button, Input, PhoneInput } from '../components/ui';
 
 function Signup() {
   const navigate = useNavigate();
   const { signup } = useAuth();
+  const { addNotification } = useAlerts();
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -20,10 +22,14 @@ function Signup() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
+
+  const fieldErrorList = Object.values(fieldErrors).filter(Boolean);
 
   const handleChange = (field) => (e) => {
     setFormData({ ...formData, [field]: e.target.value });
     setError('');
+    setFieldErrors({});
   };
 
   const handleSubmit = async (e) => {
@@ -32,20 +38,29 @@ function Signup() {
 
     // Validation
     if (formData.password !== formData.confirmPassword) {
-      const errorMsg = 'Passwords do not match';
-      setError(errorMsg);
-      alert('❌ Registration Error\n\n' + errorMsg);
+      setError('');
+      setFieldErrors({ confirmPassword: 'Passwords do not match' });
+      addNotification({
+        type: 'error',
+        title: 'Registration error',
+        message: 'Passwords do not match',
+      });
       return;
     }
 
     if (formData.password.length < 8) {
-      const errorMsg = 'Password must be at least 8 characters';
-      setError(errorMsg);
-      alert('❌ Registration Error\n\n' + errorMsg);
+      setError('');
+      setFieldErrors({ password: 'Password must be at least 8 characters' });
+      addNotification({
+        type: 'error',
+        title: 'Registration error',
+        message: 'Password must be at least 8 characters',
+      });
       return;
     }
 
     setIsLoading(true);
+    setFieldErrors({});
 
     try {
       const result = await signup({
@@ -63,14 +78,24 @@ function Signup() {
       } else {
         const errorMsg = result.error || 'Registration failed';
         setError(errorMsg);
-        // Show error in alert popup
-        alert('❌ Registration Failed\n\n' + errorMsg);
+        if (result.fieldErrors) {
+          setFieldErrors(result.fieldErrors);
+        }
+        addNotification({
+          type: 'error',
+          title: 'Registration failed',
+          message: errorMsg,
+        });
         console.error('Signup error:', errorMsg);
       }
     } catch (error) {
       const errorMsg = error.message || 'An unexpected error occurred';
       setError(errorMsg);
-      alert('❌ Registration Error\n\n' + errorMsg);
+      addNotification({
+        type: 'error',
+        title: 'Registration error',
+        message: errorMsg,
+      });
       console.error('Signup exception:', error);
     }
     
@@ -141,9 +166,16 @@ function Signup() {
               </div>
             </div>
 
-            {error && (
+            {(error || fieldErrorList.length > 0) && (
               <div className="mb-4 p-3 bg-danger-50 border border-danger-200 rounded-lg text-danger-700 text-sm">
-                {error}
+                {error || 'Please fix the highlighted fields.'}
+                {fieldErrorList.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {fieldErrorList.map((msg, index) => (
+                      <div key={`${msg}-${index}`}>• {msg}</div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -154,6 +186,7 @@ function Signup() {
                   type="text"
                   value={formData.firstName}
                   onChange={handleChange('firstName')}
+                  error={fieldErrors.first_name}
                   placeholder="John"
                 />
                 <Input
@@ -161,6 +194,7 @@ function Signup() {
                   type="text"
                   value={formData.lastName}
                   onChange={handleChange('lastName')}
+                  error={fieldErrors.last_name}
                   placeholder="Doe"
                 />
               </div>
@@ -172,6 +206,7 @@ function Signup() {
                 onChange={handleChange('username')}
                 placeholder="johndoe"
                 leftIcon={<User className="w-5 h-5" />}
+                error={fieldErrors.username}
                 required
               />
 
@@ -182,6 +217,7 @@ function Signup() {
                 onChange={handleChange('email')}
                 placeholder="john@example.com"
                 leftIcon={<Mail className="w-5 h-5" />}
+                error={fieldErrors.email}
                 required
               />
 
@@ -189,6 +225,7 @@ function Signup() {
                 label="Mobile Number"
                 value={formData.mobileNumber}
                 onChange={handleChange('mobileNumber')}
+                error={fieldErrors.mobile_number}
                 helperText="For wildlife alerts in your area"
               />
 
@@ -199,6 +236,7 @@ function Signup() {
                 onChange={handleChange('password')}
                 placeholder="Min. 8 characters"
                 leftIcon={<Lock className="w-5 h-5" />}
+                error={fieldErrors.password}
                 rightIcon={
                   <button
                     type="button"
@@ -218,6 +256,7 @@ function Signup() {
                 onChange={handleChange('confirmPassword')}
                 placeholder="Confirm your password"
                 leftIcon={<Lock className="w-5 h-5" />}
+                error={fieldErrors.confirmPassword}
                 required
               />
 

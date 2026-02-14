@@ -2,28 +2,40 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Eye, EyeOff, Lock, Shield, Trees, User } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useAlerts } from '../context/AlertContext';
 import { Button, Input, PhoneInput } from '../components/ui';
 
 function Login() {
   const navigate = useNavigate();
   const { loginAsRanger } = useAuth();
+  const { addNotification } = useAlerts();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [loginMethod, setLoginMethod] = useState('default');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
+
+  const fieldErrorList = Object.values(fieldErrors).filter(Boolean);
 
   const handleIdentifierChange = (e) => {
     setIdentifier(e.target.value);
+    setFieldErrors({});
+  };
+
+  const handlePasswordChange = (e) => {
+    setPassword(e.target.value);
+    setFieldErrors({});
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setFieldErrors({});
     setIsLoading(true);
 
-    const result = await loginAsRanger(identifier, password);
+    const result = await loginAsRanger(identifier, password, loginMethod);
     
     if (result.success) {
       // Redirect based on user type
@@ -33,7 +45,17 @@ function Login() {
         navigate('/public');
       }
     } else {
-      setError(result.error || 'Invalid credentials');
+      const fieldErrorText = result.fieldErrors?.non_field_errors;
+      const errorMessage = result.error || fieldErrorText || 'Invalid credentials';
+      setError(errorMessage);
+      if (result.fieldErrors) {
+        setFieldErrors(result.fieldErrors);
+      }
+      addNotification({
+        type: 'error',
+        title: 'Login failed',
+        message: errorMessage,
+      });
     }
     setIsLoading(false);
   };
@@ -100,9 +122,16 @@ function Login() {
               </div>
             </div>
 
-            {error && (
+            {(error || fieldErrorList.length > 0) && (
               <div className="mb-4 p-3 bg-danger-50 border border-danger-200 rounded-lg text-danger-700 text-sm">
-                {error}
+                {error || 'Please fix the highlighted fields.'}
+                {fieldErrorList.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {fieldErrorList.map((msg, index) => (
+                      <div key={`${msg}-${index}`}>• {msg}</div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -138,6 +167,7 @@ function Login() {
                     label="Mobile Number"
                     value={identifier}
                     onChange={handleIdentifierChange}
+                    error={fieldErrors.mobile_number}
                     helperText="Use the same number you registered with"
                     required
                   />
@@ -149,6 +179,7 @@ function Login() {
                     onChange={handleIdentifierChange}
                     placeholder="john@wildlife.com"
                     leftIcon={<User className="w-5 h-5" />}
+                    error={fieldErrors.email || fieldErrors.username}
                     required
                   />
                 )}
@@ -158,9 +189,10 @@ function Login() {
                 label="Password"
                 type={showPassword ? 'text' : 'password'}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={handlePasswordChange}
                 placeholder="Enter your password"
                 leftIcon={<Lock className="w-5 h-5" />}
+                error={fieldErrors.password}
                 rightIcon={
                   <button
                     type="button"
