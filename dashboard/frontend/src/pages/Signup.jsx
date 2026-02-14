@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Eye, EyeOff, Mail, Lock, User, MapPin, Shield, Trees, UserCircle } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, User, Trees, UserCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useAlerts } from '../context/AlertContext';
 import { Button, Input, PhoneInput } from '../components/ui';
 
 function Signup() {
   const navigate = useNavigate();
   const { signup } = useAuth();
+  const { addNotification } = useAlerts();
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -20,10 +22,14 @@ function Signup() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
+
+  const fieldErrorList = Object.values(fieldErrors).filter(Boolean);
 
   const handleChange = (field) => (e) => {
     setFormData({ ...formData, [field]: e.target.value });
     setError('');
+    setFieldErrors({});
   };
 
   const handleSubmit = async (e) => {
@@ -32,20 +38,29 @@ function Signup() {
 
     // Validation
     if (formData.password !== formData.confirmPassword) {
-      const errorMsg = 'Passwords do not match';
-      setError(errorMsg);
-      alert('❌ Registration Error\n\n' + errorMsg);
+      setError('');
+      setFieldErrors({ confirmPassword: 'Passwords do not match' });
+      addNotification({
+        type: 'error',
+        title: 'Registration error',
+        message: 'Passwords do not match',
+      });
       return;
     }
 
     if (formData.password.length < 8) {
-      const errorMsg = 'Password must be at least 8 characters';
-      setError(errorMsg);
-      alert('❌ Registration Error\n\n' + errorMsg);
+      setError('');
+      setFieldErrors({ password: 'Password must be at least 8 characters' });
+      addNotification({
+        type: 'error',
+        title: 'Registration error',
+        message: 'Password must be at least 8 characters',
+      });
       return;
     }
 
     setIsLoading(true);
+    setFieldErrors({});
 
     try {
       const result = await signup({
@@ -55,26 +70,32 @@ function Signup() {
         first_name: formData.firstName,
         last_name: formData.lastName,
         mobile_number: formData.mobileNumber,
-        user_type: formData.userType,
+        user_type: 'public',
       });
 
       if (result.success) {
-        if (formData.userType === 'ranger') {
-          navigate('/ranger');
-        } else {
-          navigate('/public');
-        }
+        navigate('/public');
       } else {
         const errorMsg = result.error || 'Registration failed';
         setError(errorMsg);
-        // Show error in alert popup
-        alert('❌ Registration Failed\n\n' + errorMsg);
+        if (result.fieldErrors) {
+          setFieldErrors(result.fieldErrors);
+        }
+        addNotification({
+          type: 'error',
+          title: 'Registration failed',
+          message: errorMsg,
+        });
         console.error('Signup error:', errorMsg);
       }
     } catch (error) {
       const errorMsg = error.message || 'An unexpected error occurred';
       setError(errorMsg);
-      alert('❌ Registration Error\n\n' + errorMsg);
+      addNotification({
+        type: 'error',
+        title: 'Registration error',
+        message: errorMsg,
+      });
       console.error('Signup exception:', error);
     }
     
@@ -98,22 +119,10 @@ function Signup() {
             Join Our Wildlife Protection Network
           </h2>
           <p className="text-forest-200 text-lg mb-8">
-            Whether you're a forest ranger or a wildlife enthusiast, create an account to stay informed about wildlife activity in your area.
+            Create an account to stay informed about wildlife activity in your area.
           </p>
           
           <div className="space-y-6">
-            <div className="bg-forest-700/50 rounded-xl p-6">
-              <div className="flex items-center gap-3 mb-3">
-                <Shield className="w-8 h-8 text-forest-300" />
-                <h3 className="text-xl font-semibold">For Rangers</h3>
-              </div>
-              <ul className="text-forest-200 space-y-2 ml-11">
-                <li>• Full access to monitoring dashboard</li>
-                <li>• Real-time alerts and notifications</li>
-                <li>• Camera and device management</li>
-              </ul>
-            </div>
-            
             <div className="bg-earth-700/50 rounded-xl p-6">
               <div className="flex items-center gap-3 mb-3">
                 <UserCircle className="w-8 h-8 text-earth-300" />
@@ -146,49 +155,27 @@ function Signup() {
               <p className="text-gray-500 text-sm mt-1">Join the wildlife protection community</p>
             </div>
 
-            {/* User Type Selection */}
+            {/* Public-only signup */}
             <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                I am a...
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setFormData({ ...formData, userType: 'public' })}
-                  className={`p-4 rounded-xl border-2 transition-all ${
-                    formData.userType === 'public'
-                      ? 'border-earth-500 bg-earth-50 text-earth-700'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <UserCircle className={`w-8 h-8 mx-auto mb-2 ${
-                    formData.userType === 'public' ? 'text-earth-600' : 'text-gray-400'
-                  }`} />
+              <div className="flex items-center gap-3 p-4 rounded-xl border-2 border-earth-500 bg-earth-50 text-earth-700">
+                <UserCircle className="w-8 h-8 text-earth-600" />
+                <div>
                   <p className="font-medium">Public User</p>
-                  <p className="text-xs text-gray-500 mt-1">Wildlife enthusiast</p>
-                </button>
-                
-                <button
-                  type="button"
-                  onClick={() => setFormData({ ...formData, userType: 'ranger' })}
-                  className={`p-4 rounded-xl border-2 transition-all ${
-                    formData.userType === 'ranger'
-                      ? 'border-forest-500 bg-forest-50 text-forest-700'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <Shield className={`w-8 h-8 mx-auto mb-2 ${
-                    formData.userType === 'ranger' ? 'text-forest-600' : 'text-gray-400'
-                  }`} />
-                  <p className="font-medium">Forest Ranger</p>
-                  <p className="text-xs text-gray-500 mt-1">Authorized personnel</p>
-                </button>
+                  <p className="text-xs text-gray-500">Wildlife enthusiast</p>
+                </div>
               </div>
             </div>
 
-            {error && (
+            {(error || fieldErrorList.length > 0) && (
               <div className="mb-4 p-3 bg-danger-50 border border-danger-200 rounded-lg text-danger-700 text-sm">
-                {error}
+                {error || 'Please fix the highlighted fields.'}
+                {fieldErrorList.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {fieldErrorList.map((msg, index) => (
+                      <div key={`${msg}-${index}`}>• {msg}</div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -199,6 +186,7 @@ function Signup() {
                   type="text"
                   value={formData.firstName}
                   onChange={handleChange('firstName')}
+                  error={fieldErrors.first_name}
                   placeholder="John"
                 />
                 <Input
@@ -206,6 +194,7 @@ function Signup() {
                   type="text"
                   value={formData.lastName}
                   onChange={handleChange('lastName')}
+                  error={fieldErrors.last_name}
                   placeholder="Doe"
                 />
               </div>
@@ -217,6 +206,7 @@ function Signup() {
                 onChange={handleChange('username')}
                 placeholder="johndoe"
                 leftIcon={<User className="w-5 h-5" />}
+                error={fieldErrors.username}
                 required
               />
 
@@ -227,6 +217,7 @@ function Signup() {
                 onChange={handleChange('email')}
                 placeholder="john@example.com"
                 leftIcon={<Mail className="w-5 h-5" />}
+                error={fieldErrors.email}
                 required
               />
 
@@ -234,6 +225,7 @@ function Signup() {
                 label="Mobile Number"
                 value={formData.mobileNumber}
                 onChange={handleChange('mobileNumber')}
+                error={fieldErrors.mobile_number}
                 helperText="For wildlife alerts in your area"
               />
 
@@ -244,6 +236,7 @@ function Signup() {
                 onChange={handleChange('password')}
                 placeholder="Min. 8 characters"
                 leftIcon={<Lock className="w-5 h-5" />}
+                error={fieldErrors.password}
                 rightIcon={
                   <button
                     type="button"
@@ -263,6 +256,7 @@ function Signup() {
                 onChange={handleChange('confirmPassword')}
                 placeholder="Confirm your password"
                 leftIcon={<Lock className="w-5 h-5" />}
+                error={fieldErrors.confirmPassword}
                 required
               />
 

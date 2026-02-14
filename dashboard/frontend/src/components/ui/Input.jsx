@@ -7,6 +7,7 @@ function Input({
   leftIcon,
   rightIcon,
   className,
+  required,
   ...props
 }) {
   return (
@@ -14,6 +15,7 @@ function Input({
       {label && (
         <label className="block text-sm font-medium text-gray-700 mb-1">
           {label}
+          {required && <span className="text-danger-500 ml-1">*</span>}
         </label>
       )}
       <div className="relative">
@@ -34,6 +36,7 @@ function Input({
             error && 'border-danger-500 focus:ring-danger-500',
             className
           )}
+          required={required}
           {...props}
         />
         {rightIcon && (

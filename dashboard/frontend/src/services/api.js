@@ -91,10 +91,10 @@ export const authAPI = {
   /**
    * Login with username/email and password
    */
-  async login(identifier, password) {
+  async login(identifier, password, loginMethod = 'default') {
     const isEmail = identifier.includes('@');
     const body = {
-      [isEmail ? 'email' : 'username']: identifier,
+      [loginMethod === 'mobile' ? 'mobile_number' : (isEmail ? 'email' : 'username')]: identifier,
       password,
     };
 
@@ -107,7 +107,27 @@ export const authAPI = {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.errors?.non_field_errors?.[0] || data.errors?.detail || 'Login failed');
+      let errorMsg = 'Login failed';
+      let fieldErrors = {};
+
+      if (data.errors) {
+        fieldErrors = Object.entries(data.errors).reduce((acc, [field, msgs]) => {
+          acc[field] = Array.isArray(msgs) ? msgs.join(', ') : msgs;
+          return acc;
+        }, {});
+        errorMsg = data.errors?.non_field_errors?.[0]
+          || data.errors?.detail
+          || Object.values(fieldErrors)[0]
+          || errorMsg;
+      } else if (data.error) {
+        errorMsg = data.error;
+      } else if (data.detail) {
+        errorMsg = data.detail;
+      }
+
+      const error = new Error(errorMsg);
+      error.fieldErrors = fieldErrors;
+      throw error;
     }
 
     setTokens(data.tokens.access, data.tokens.refresh);
@@ -130,11 +150,17 @@ export const authAPI = {
       // Handle different error response formats
       let errorMsg = 'Signup failed';
       
+      let fieldErrors = {};
+
       if (data.errors) {
         // Format: { errors: { field: ["error1", "error2"] } }
-        const errorMessages = Object.entries(data.errors).map(([field, msgs]) => {
+        fieldErrors = Object.entries(data.errors).reduce((acc, [field, msgs]) => {
+          acc[field] = Array.isArray(msgs) ? msgs.join(', ') : msgs;
+          return acc;
+        }, {});
+        const errorMessages = Object.entries(fieldErrors).map(([field, msg]) => {
           const fieldName = field.replace(/_/g, ' ');
-          return `${fieldName}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`;
+          return `${fieldName}: ${msg}`;
         });
         errorMsg = errorMessages.join('; ');
       } else if (data.error) {
@@ -148,7 +174,9 @@ export const authAPI = {
         errorMsg = data;
       }
       
-      throw new Error(errorMsg);
+      const error = new Error(errorMsg);
+      error.fieldErrors = fieldErrors;
+      throw error;
     }
 
     setTokens(data.tokens.access, data.tokens.refresh);

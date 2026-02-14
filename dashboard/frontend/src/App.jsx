@@ -1,7 +1,8 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AppProvider } from './context/AppContext';
-import { AlertProvider } from './context/AlertContext';
+import { AlertProvider, useAlerts } from './context/AlertContext';
+import { NotificationToast } from './components/ui';
 
 // Layout
 import MainLayout from './components/layout/MainLayout';
@@ -153,6 +154,17 @@ function AppRoutes() {
   );
 }
 
+function ToastHost() {
+  const { notifications, dismissNotification } = useAlerts();
+
+  return (
+    <NotificationToast
+      notifications={notifications}
+      onDismiss={dismissNotification}
+    />
+  );
+}
+
 function App() {
   return (
     <Router>
@@ -160,6 +172,7 @@ function App() {
         <AppProvider>
           <AlertProvider>
             <AppRoutes />
+            <ToastHost />
           </AlertProvider>
         </AppProvider>
       </AuthProvider>

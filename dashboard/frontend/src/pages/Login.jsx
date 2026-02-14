@@ -1,24 +1,41 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Eye, EyeOff, Mail, Lock, Shield, Trees } from 'lucide-react';
+import { Eye, EyeOff, Lock, Shield, Trees, User } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { Button, Input } from '../components/ui';
+import { useAlerts } from '../context/AlertContext';
+import { Button, Input, PhoneInput } from '../components/ui';
 
 function Login() {
   const navigate = useNavigate();
   const { loginAsRanger } = useAuth();
-  const [email, setEmail] = useState('');
+  const { addNotification } = useAlerts();
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [loginMethod, setLoginMethod] = useState('default');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
+
+  const fieldErrorList = Object.values(fieldErrors).filter(Boolean);
+
+  const handleIdentifierChange = (e) => {
+    setIdentifier(e.target.value);
+    setFieldErrors({});
+  };
+
+  const handlePasswordChange = (e) => {
+    setPassword(e.target.value);
+    setFieldErrors({});
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setFieldErrors({});
     setIsLoading(true);
 
-    const result = await loginAsRanger(email, password);
+    const result = await loginAsRanger(identifier, password, loginMethod);
     
     if (result.success) {
       // Redirect based on user type
@@ -28,7 +45,17 @@ function Login() {
         navigate('/public');
       }
     } else {
-      setError(result.error || 'Invalid credentials');
+      const fieldErrorText = result.fieldErrors?.non_field_errors;
+      const errorMessage = result.error || fieldErrorText || 'Invalid credentials';
+      setError(errorMessage);
+      if (result.fieldErrors) {
+        setFieldErrors(result.fieldErrors);
+      }
+      addNotification({
+        type: 'error',
+        title: 'Login failed',
+        message: errorMessage,
+      });
     }
     setIsLoading(false);
   };
@@ -95,30 +122,77 @@ function Login() {
               </div>
             </div>
 
-            {error && (
+            {(error || fieldErrorList.length > 0) && (
               <div className="mb-4 p-3 bg-danger-50 border border-danger-200 rounded-lg text-danger-700 text-sm">
-                {error}
+                {error || 'Please fix the highlighted fields.'}
+                {fieldErrorList.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {fieldErrorList.map((msg, index) => (
+                      <div key={`${msg}-${index}`}>• {msg}</div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              <Input
-                label="Email or Username"
-                type="text"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="john@wildlife.com"
-                leftIcon={<Mail className="w-5 h-5" />}
-                required
-              />
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setLoginMethod('default')}
+                    className={`flex-1 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                      loginMethod === 'default'
+                        ? 'border-forest-500 bg-forest-50 text-forest-700'
+                        : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    Email / Username
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLoginMethod('mobile')}
+                    className={`flex-1 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                      loginMethod === 'mobile'
+                        ? 'border-earth-500 bg-earth-50 text-earth-700'
+                        : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    Mobile Number
+                  </button>
+                </div>
+
+                {loginMethod === 'mobile' ? (
+                  <PhoneInput
+                    label="Mobile Number"
+                    value={identifier}
+                    onChange={handleIdentifierChange}
+                    error={fieldErrors.mobile_number}
+                    helperText="Use the same number you registered with"
+                    required
+                  />
+                ) : (
+                  <Input
+                    label="Email or Username"
+                    type="text"
+                    value={identifier}
+                    onChange={handleIdentifierChange}
+                    placeholder="john@wildlife.com"
+                    leftIcon={<User className="w-5 h-5" />}
+                    error={fieldErrors.email || fieldErrors.username}
+                    required
+                  />
+                )}
+              </div>
 
               <Input
                 label="Password"
                 type={showPassword ? 'text' : 'password'}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={handlePasswordChange}
                 placeholder="Enter your password"
                 leftIcon={<Lock className="w-5 h-5" />}
+                error={fieldErrors.password}
                 rightIcon={
                   <button
                     type="button"
