@@ -14,7 +14,7 @@ const char* WIFI_PASSWORD = "1234567890";
 const char* SERVER_HOST = "10.76.24.170"; // your Django server IP
 const uint16_t SERVER_PORT = 8000;         // Django dev port
 const char* ENDPOINT = "/api/device/capture/";
-const char* DEVICE_ID = "ESP32-CAM-001";
+const char* DEVICE_ID = "ESP32-CAM-109";
 
 // PIR input pin
 #define PIR_PIN 13

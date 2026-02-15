@@ -5,6 +5,7 @@ Sends WhatsApp messages to nearby users and makes calls to device owners.
 
 import math
 import threading
+import re
 from django.conf import settings
 from django.contrib.auth.models import User
 
@@ -111,6 +112,9 @@ def send_whatsapp_message(to_number, message):
             print("TWILIO_WHATSAPP_NUMBER not configured")
             return None
         
+        to_number = normalize_phone_number(to_number)
+        from_whatsapp = normalize_phone_number(from_whatsapp)
+        
         # Ensure proper WhatsApp format
         if not to_number.startswith('whatsapp:'):
             to_number = f'whatsapp:{to_number}'
@@ -151,6 +155,9 @@ def send_sms_message(to_number, message):
             print("TWILIO_PHONE_NUMBER not configured")
             return None
 
+        to_number = normalize_phone_number(to_number)
+        from_number = normalize_phone_number(from_number)
+
         message_obj = client.messages.create(
             body=message,
             from_=from_number,
@@ -184,6 +191,9 @@ def make_phone_call(to_number, message):
         if not from_number:
             print("TWILIO_PHONE_NUMBER not configured")
             return None
+
+        to_number = normalize_phone_number(to_number)
+        from_number = normalize_phone_number(from_number)
         
         # Create TwiML response with the message
         twiml = f'<Response><Say voice="alice">{message}</Say><Pause length="1"/><Say voice="alice">{message}</Say></Response>'
@@ -218,6 +228,18 @@ def normalize_animal_type(animal_type):
         "tiger": "Tiger",
     }
     return animal_type_map.get(normalized_key, animal_type)
+
+
+def normalize_phone_number(phone_number):
+    """Normalize phone numbers for Twilio (strip spaces and non-digits except leading +)."""
+    if not phone_number:
+        return phone_number
+    number = str(phone_number).strip()
+    if number.startswith('whatsapp:'):
+        number = number[len('whatsapp:'):]
+    if number.startswith('+'):
+        return '+' + re.sub(r'\D', '', number)
+    return re.sub(r'\D', '', number)
 
 
 def get_risk_level(animal_type):
@@ -272,7 +294,7 @@ def send_wildlife_alerts(device, animal_type, confidence, image_url=None):
             
             # Compose alert message
             alert_message = (
-                f"🚨 WILDLIFE ALERT 🚨\n\n"
+                f"WILDLIFE ALERT \n\n"
                 f"Animal Detected: {animal_type}\n"
                 f"Confidence: {confidence_pct}\n"
                 f"Device: {device.device_id}\n"
@@ -311,7 +333,9 @@ def send_wildlife_alerts(device, animal_type, confidence, image_url=None):
                     )
 
                     print(f"Sending SMS to {user.username} ({mobile}) - {distance:.1f}km away")
-                    send_sms_message(mobile, personalized_message)
+                    message_sid = send_sms_message(mobile, personalized_message)
+                    if not message_sid:
+                        print(f"Failed to send SMS to {user.username} ({mobile})")
             else:
                 print("Non-danger alert: skipping SMS to nearby users")
             
@@ -321,9 +345,7 @@ def send_wildlife_alerts(device, animal_type, confidence, image_url=None):
                 owner_mobile = owner.profile.mobile_number
                 
                 call_message = (
-                    f"Wildlife Alert! A {animal_type} has been detected by your device {device.device_id}. "
-                    f"Detection confidence is {confidence_pct}. "
-                    f"Please check your device immediately and take necessary safety precautions."
+                    f"{animal_type} has been detected by your device {device.device_id}. Detection confidence is {confidence_pct}. "
                 )
                 
                 print(f"Calling device owner {owner.username} ({owner_mobile})")
